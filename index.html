@@ -316,6 +316,28 @@ const STATIC_CITY_VERT_DATA={
 const GROWTH_SHEET_ID='1eg0_2PFqSP_kIg_-LxJ5kOqMwyf2eEtXe4F5xTkzuGQ';
 // National avg daily orders per vendor by cuisine (from Aug 2026 active vendor data)
 const NATL_AVG={grocery:13.3,supermarket:24.6,supplements:11.3,specialty_store:5.0,cosmetics:16.1,fruits:21.3,'bakery & pastry':22.1,beverages:22.2,hypermarket:33.9,pharmacy:11.0,'pet shop':3.3,nuts:14.2,butchery:4.4,'nuts & dried fruit':12.0,'convenience store':8.0};
+// Fixed vendor count targets per category — applies to all cities (temporary)
+// Supplements is grouped under Pharmacy. Gap = target − active vendors in that category.
+const VERT_TARGETS_MAP=[
+  {label:'Supermarket',    icon:'🏬',target:5, cuisines:['supermarket'],                                           natAvg:24.6},
+  {label:'Pharmacy',       icon:'💊',target:7, cuisines:['pharmacy','supplements','supplement'],                   natAvg:11.0},
+  {label:'Fruits & Veg',   icon:'🍎',target:3, cuisines:['fruits','vegetables','fruits & vegetables','greens'],    natAvg:21.3},
+  {label:'Bakery',         icon:'🥖',target:3, cuisines:['bakery & pastry','bakery','pastry'],                     natAvg:22.1},
+  {label:'Dairy',          icon:'🥛',target:3, cuisines:['dairy','milk','dairy & eggs'],                           natAvg:15.0},
+  {label:'Nuts / Snacks',  icon:'🥜',target:3, cuisines:['nuts','nuts & dried fruit','nuts & snacks','roastery'],  natAvg:14.2},
+  {label:'Pet Shop',       icon:'🐾',target:1, cuisines:['pet shop','pets'],                                       natAvg:3.3},
+  {label:'Chicken',        icon:'🍗',target:1, cuisines:['chicken','poultry','fried chicken','grilled chicken'],   natAvg:15.0},
+  {label:'Butchery',       icon:'🥩',target:1, cuisines:['butchery','meat'],                                       natAvg:4.4},
+];
+function computeVertGaps(vertData){
+  return VERT_TARGETS_MAP.map(tm=>{
+    const activeVendors=tm.cuisines.reduce((s,cuis)=>s+((vertData[cuis]||{}).vendors||0),0);
+    const totalDaily=tm.cuisines.reduce((s,cuis)=>s+((vertData[cuis]||{}).totalDaily||0),0);
+    const gap=Math.max(0,tm.target-activeVendors);
+    const uplift=Math.round(gap*tm.natAvg);
+    return{...tm,activeVendors,totalDaily,gap,uplift};
+  });
+}
 // Key verticals every city should aim for
 const KEY_VERTICALS=['grocery','supermarket','supplements','pharmacy','fruits','bakery & pastry','beverages'];
 // Auto-calculate PERIOD_DAYS: days from last Monday up to and including today
@@ -765,7 +787,12 @@ function buildCityPage(pageId){
   html+='<div class="kpi-card"><div class="kpi-label">Daily tMart</div><div class="kpi-val">'+(openMkt?c.tmart:fmt(c.tmart))+'</div><div class="kpi-sub">'+(openMkt?'minimal competition':'benchmark')+'</div></div>';
   html+='<div class="kpi-card"><div class="kpi-label">Gap / Day</div><div class="kpi-val '+(gap>0&&!openMkt?'red':'')+'">'+(openMkt?'&mdash;':fmt(gap))+'</div><div class="kpi-sub">orders to close</div></div>';
   html+='<div class="kpi-card"><div class="kpi-label">Achievement</div><div class="kpi-val '+(ach!=null?(ach<25?'red':ach>=90?'grn':'org'):'blu')+'">'+(ach!=null?ach+'%':'N/A')+'</div><div class="kpi-sub">of tMart</div></div>';
-  html+='<div class="kpi-card"><div class="kpi-label">Vendors</div><div class="kpi-val">'+c.vendors+'</div><div class="kpi-sub">~'+avg+'/vendor/day</div></div>';
+  // Use CITY_VERT_DATA vendor count (vendors with orders) for consistency with Vertical Gap section
+  const cityVD=CITY_VERT_DATA&&CITY_VERT_DATA[cityName]?CITY_VERT_DATA[cityName]:{};
+  const vendorsWithOrders=Object.values(cityVD).reduce((s,v)=>s+(v.vendors||0),0);
+  const vendorDisplay=vendorsWithOrders>0?vendorsWithOrders:c.vendors;
+  const vendorSub=vendorsWithOrders>0&&c.vendors!==vendorsWithOrders?vendorsWithOrders+' w/ orders / '+c.vendors+' total':'~'+avg+'/vendor/day';
+  html+='<div class="kpi-card"><div class="kpi-label">Vendors</div><div class="kpi-val">'+vendorDisplay+'</div><div class="kpi-sub">'+vendorSub+'</div></div>';
   html+='<div class="kpi-card"><div class="kpi-label">ADT</div><div class="kpi-val" style="color:'+adtColor+'">'+(c.adt??'&mdash;')+'</div><div class="kpi-sub">min avg delivery</div></div>';
   html+='</div>';
   html+='<div class="city-page-grid">';
@@ -794,49 +821,37 @@ function buildCityPage(pageId){
     html+='<div style="margin-top:10px;padding:10px;background:#dcfce7;border-radius:8px;font-size:11px;font-weight:700;color:#166534">Total expected daily uplift: +'+expDailyTotal+' orders/day<br><span style="font-weight:400;color:var(--grn)">Projected new daily: '+fmt(daily+expDailyTotal)+' orders/day</span></div>';
   }
   html+='</div></div>';
-  // Vertical Gap — real cuisine breakdown from CITY_VERT_DATA
+  // Vertical Gap — same VERT_TARGETS_MAP as the Vertical Gap page (consistent data)
   const cityVertData=CITY_VERT_DATA&&CITY_VERT_DATA[cityName]?CITY_VERT_DATA[cityName]:{};
-  const cityVertCuisines=Object.entries(cityVertData).sort(([,a],[,b])=>b.totalDaily-a.totalDaily);
-  html+='<div class="section-card"><h3>Vertical Breakdown &mdash; '+cityName+'</h3>';
-  if(cityVertCuisines.length===0){
-    html+='<div style="color:var(--muted);font-size:12px;padding:12px 0">No cuisine data available for this city yet.</div>';
-  } else {
-    const cityGapTarget=50; // daily orders gap to close per cuisine opportunity
-    let totalVendorsNeeded=0,totalUplift=0;
-    html+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">';
-    html+='<thead><tr style="background:#f1f5f9;color:var(--muted);font-weight:700">';
-    html+='<th style="padding:6px 8px;text-align:left">Cuisine</th>';
-    html+='<th style="padding:6px 8px;text-align:center">Vendors</th>';
-    html+='<th style="padding:6px 8px;text-align:center">Curr avg/day</th>';
-    html+='<th style="padding:6px 8px;text-align:center">Mature avg/day</th>';
-    html+='<th style="padding:6px 8px;text-align:center">Total/day</th>';
-    html+='<th style="padding:6px 8px;text-align:center">To Add</th>';
-    html+='</tr></thead><tbody>';
-    cityVertCuisines.forEach(([cuis,d],i)=>{
-      const matureAvg=Math.max(d.avgPerVendor,NATL_AVG[cuis]||15);
-      const vendorsToAdd=matureAvg>0?Math.max(1,Math.round(cityGapTarget/matureAvg)):0;
-      const uplift=Math.round(vendorsToAdd*matureAvg);
-      totalVendorsNeeded+=vendorsToAdd;
-      totalUplift+=uplift;
-      const isLow=d.avgPerVendor<(NATL_AVG[cuis]||15)*0.6;
-      const bg=i%2===0?'#ffffff':'#f8fafc';
-      html+='<tr style="background:'+bg+';border-bottom:1px solid #f1f5f9">';
-      html+='<td style="padding:5px 8px;font-weight:700;color:var(--dk);text-transform:capitalize">'+cuis+'</td>';
-      html+='<td style="padding:5px 8px;text-align:center;color:var(--dk)">'+d.vendors+'</td>';
-      html+='<td style="padding:5px 8px;text-align:center;color:'+(isLow?'var(--red)':'var(--grn)')+'">'+d.avgPerVendor.toFixed(1)+'</td>';
-      html+='<td style="padding:5px 8px;text-align:center;font-weight:700;color:var(--org)">'+matureAvg.toFixed(1)+'</td>';
-      html+='<td style="padding:5px 8px;text-align:center;color:var(--dk)">'+d.totalDaily.toFixed(0)+'</td>';
-      html+='<td style="padding:5px 8px;text-align:center;font-weight:800;color:var(--blu)">+'+vendorsToAdd+'</td>';
-      html+='</tr>';
-    });
-    html+='<tr style="background:#f0fdf4;font-weight:800;border-top:2px solid #bbf7d0">';
-    html+='<td style="padding:6px 8px;color:#166534">Total</td>';
-    html+='<td colspan="4" style="padding:6px 8px;text-align:right;color:#166534;font-size:10px">Expected uplift: +'+totalUplift+' orders/day</td>';
-    html+='<td style="padding:6px 8px;text-align:center;color:#166534">+'+totalVendorsNeeded+'</td>';
+  const cityGapRows=computeVertGaps(cityVertData);
+  const cityTotalNeeded=cityGapRows.reduce((s,r)=>s+r.gap,0);
+  const cityTotalUplift=cityGapRows.reduce((s,r)=>s+r.uplift,0);
+  html+='<div class="section-card"><h3>Vertical Targets &mdash; '+cityName+'</h3>';
+  html+='<div class="section-sub">Same targets as Vertical Gap page · Need <b style="color:var(--bur)">+'+cityTotalNeeded+'</b> vendors → <b style="color:var(--grn)">+'+cityTotalUplift+'</b> orders/day</div>';
+  html+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:8px">';
+  html+='<thead><tr style="background:#f1f5f9;color:var(--muted);font-weight:700;font-size:10px">';
+  html+='<th style="padding:5px 8px;text-align:left">Category</th>';
+  html+='<th style="padding:5px 8px;text-align:center">Target</th>';
+  html+='<th style="padding:5px 8px;text-align:center">Active</th>';
+  html+='<th style="padding:5px 8px;text-align:center">Gap</th>';
+  html+='<th style="padding:5px 8px;text-align:center">Exp. Uplift</th>';
+  html+='</tr></thead><tbody>';
+  cityGapRows.forEach(r=>{
+    const met=r.gap===0;
+    const bg=met?'#f0fdf4':r.activeVendors===0?'#fef2f2':'#ffffff';
+    html+='<tr style="background:'+bg+';border-bottom:1px solid #f1f5f9">';
+    html+='<td style="padding:5px 8px;font-weight:700">'+r.icon+' '+r.label+'</td>';
+    html+='<td style="padding:5px 8px;text-align:center;font-weight:700">'+r.target+'</td>';
+    html+='<td style="padding:5px 8px;text-align:center;color:'+(r.activeVendors>=r.target?'var(--grn)':r.activeVendors>0?'var(--org)':'var(--muted)')+'">'+r.activeVendors+'</td>';
+    html+='<td style="padding:5px 8px;text-align:center;font-weight:800;color:'+(met?'var(--grn)':'var(--red)')+'">'+(met?'✓':'+'+r.gap)+'</td>';
+    html+='<td style="padding:5px 8px;text-align:center;font-weight:700;color:var(--grn)">'+(r.uplift>0?'+'+r.uplift+'/day':'—')+'</td>';
     html+='</tr>';
-    html+='</tbody></table></div>';
-    html+='<div style="font-size:9px;color:var(--muted);margin-top:6px">* Mature avg = max(current avg, national avg by cuisine). New vendors grow 2-3x in 6 months.</div>';
-  }
+  });
+  html+='<tr style="background:#f0fdf4;font-weight:800;border-top:2px solid #bbf7d0">';
+  html+='<td style="padding:6px 8px;color:#166534">Total</td>';
+  html+='<td colspan="2" style="padding:6px 8px;text-align:center;color:#166534">+'+cityTotalNeeded+' needed</td>';
+  html+='<td colspan="2" style="padding:6px 8px;text-align:center;color:#166534">+'+cityTotalUplift+'/day</td>';
+  html+='</tr></tbody></table></div>';
   html+='</div>';
   el.innerHTML=html;
 }
@@ -955,51 +970,51 @@ function buildVerticals(){
     const gap=Math.max(0,target-currentTotal);
     const pct=Math.min(100,Math.round(currentTotal/target*100));
     const barColor=pct>=80?'var(--grn)':pct>=40?'var(--org)':'var(--red)';
-    // Per-cuisine gap allocation: each top cuisine gets equal share of gap
-    const topN=Math.min(6,Math.max(1,cuisines.length));
-    const gapPerCuisine=gap/topN;
-    const planRows=cuisines.map(([cuis,d])=>{
-      // Use mature vendor productivity: max of (current avg, national avg, 15 min)
-      // Rationale: new vendor at 8/day today will reach 20+/day in 6 months
-      const matureAvg=Math.max(d.avgPerVendor,NATL_AVG[cuis]||15);
-      const vendorsToAdd=matureAvg>0?Math.max(1,Math.round(gapPerCuisine/matureAvg)):0;
-      const uplift=Math.round(vendorsToAdd*matureAvg);
-      return{cuisine:cuis,...d,vendorsToAdd,uplift,matureAvg};
-    }).filter(r=>r.totalDaily>0||r.vendorsToAdd>0);
-    // Missing key verticals (not in current active list)
-    const presentCuisines=new Set(cuisines.map(([c])=>c));
-    const missingKey=KEY_VERTICALS.filter(k=>!presentCuisines.has(k));
+    // Target-based vendor gap (VERT_TARGETS_MAP — fixed targets all cities, temporary)
+    const vertGapRows=computeVertGaps(vertData);
+    const totalVendorsNeeded=vertGapRows.reduce((s,r)=>s+r.gap,0);
+    const totalExpectedUplift=vertGapRows.reduce((s,r)=>s+r.uplift,0);
     // Build city card
     out+='<div class="section-card" style="margin-bottom:14px">';
     // Header
     out+='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">';
     out+='<div><h3 style="font-size:15px">'+(c.priority?'&#127919; ':'')+c.city+'</h3>';
-    out+='<div class="section-sub">'+c.cluster+' &middot; '+activeVendorCount+' active vendors (Jul–Aug 2026) &middot; <span style="color:'+(hasTMart?'var(--blu)':'var(--muted)')+'">'+targetLabel+'</span></div></div>';
-    out+='<div style="text-align:right"><div style="font-size:18px;font-weight:800;color:'+(pct>=80?'var(--grn)':pct>=40?'var(--org)':'var(--red)')+'">'+pct+'%</div><div style="font-size:9px;color:var(--muted)">of target</div></div></div>';
-    // Progress bar
-    out+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">';
-    out+='<div style="flex:1;height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden"><div style="width:'+pct+'%;height:100%;background:'+barColor+';border-radius:4px;transition:width .6s"></div></div>';
-    out+='<div style="font-size:11px;white-space:nowrap"><b style="color:var(--bur)">'+Math.round(currentTotal).toLocaleString()+'</b> <span style="color:var(--muted)">/ '+Math.round(target).toLocaleString()+' /day</span> &nbsp;<span style="color:var(--red);font-weight:700">Gap: '+Math.round(gap).toLocaleString()+'</span></div>';
+    out+='<div class="section-sub">'+c.cluster+' &middot; '+activeVendorCount+' vendors w/ orders &middot; '+c.vendors+' total active</div></div>';
+    out+='<div style="text-align:right"><div style="font-size:18px;font-weight:800;color:'+(totalVendorsNeeded===0?'var(--grn)':totalVendorsNeeded<=5?'var(--org)':'var(--red)')+'">'+totalVendorsNeeded+'</div><div style="font-size:9px;color:var(--muted)">vendors needed</div></div></div>';
+    // Vendor Acquisition Targets Table
+    out+='<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 14px;margin-bottom:12px">';
+    out+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
+    out+='<div style="font-size:10px;font-weight:700;color:var(--org);text-transform:uppercase;letter-spacing:.5px">🎯 Vendor Acquisition Targets</div>';
+    out+='<div style="font-size:10px;color:var(--muted)">Need <b style="color:var(--bur)">+'+totalVendorsNeeded+'</b> vendors &rarr; <b style="color:var(--grn)">+'+totalExpectedUplift+'</b> orders/day</div></div>';
+    out+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">';
+    out+='<thead><tr style="background:#f1f5f9;color:var(--muted);font-weight:700;font-size:10px">';
+    out+='<th style="padding:5px 8px;text-align:left">Category</th>';
+    out+='<th style="padding:5px 8px;text-align:center">Target</th>';
+    out+='<th style="padding:5px 8px;text-align:center">Active</th>';
+    out+='<th style="padding:5px 8px;text-align:center">Gap</th>';
+    out+='<th style="padding:5px 8px;text-align:center">Avg/day</th>';
+    out+='<th style="padding:5px 8px;text-align:center">Exp. Uplift</th>';
+    out+='</tr></thead><tbody>';
+    vertGapRows.forEach(r=>{
+      const met=r.gap===0;
+      const bg=met?'#f0fdf4':r.activeVendors===0?'#fef2f2':'#ffffff';
+      const gapColor=met?'var(--grn)':'var(--red)';
+      out+='<tr style="background:'+bg+';border-bottom:1px solid #f1f5f9">';
+      out+='<td style="padding:5px 8px;font-weight:700">'+r.icon+' '+r.label+'</td>';
+      out+='<td style="padding:5px 8px;text-align:center;font-weight:700">'+r.target+'</td>';
+      out+='<td style="padding:5px 8px;text-align:center;color:'+(r.activeVendors>=r.target?'var(--grn)':r.activeVendors>0?'var(--org)':'var(--muted)')+'">'+r.activeVendors+'</td>';
+      out+='<td style="padding:5px 8px;text-align:center;font-weight:800;color:'+gapColor+'">'+(met?'✓':'+'+r.gap)+'</td>';
+      out+='<td style="padding:5px 8px;text-align:center;color:var(--muted)">~'+r.natAvg+'/day</td>';
+      out+='<td style="padding:5px 8px;text-align:center;font-weight:700;color:var(--grn)">'+(r.uplift>0?'+'+r.uplift+'/day':'—')+'</td>';
+      out+='</tr>';
+    });
+    out+='<tr style="background:#f0fdf4;font-weight:800;border-top:2px solid #bbf7d0">';
+    out+='<td style="padding:6px 8px;color:#166534">Total</td>';
+    out+='<td colspan="3" style="padding:6px 8px;text-align:center;color:#166534">+'+totalVendorsNeeded+' vendors needed</td>';
+    out+='<td colspan="2" style="padding:6px 8px;text-align:center;color:#166534">+'+totalExpectedUplift+'/day expected</td>';
+    out+='</tr></tbody></table></div>';
+    out+='<div style="font-size:9px;color:var(--muted);margin-top:4px">* Temporary fixed targets for all cities. Supplements counted under Pharmacy. Avg/day = national mature benchmark.</div>';
     out+='</div>';
-    // Acquisition Plan Box
-    if(gap>0&&planRows.length>0){
-      out+='<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 14px;margin-bottom:12px">';
-      out+='<div style="font-size:10px;font-weight:700;color:var(--org);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">&#128278; Acquisition Plan to close the gap</div>';
-      out+='<div style="display:flex;flex-wrap:wrap;gap:6px">';
-      planRows.slice(0,6).forEach(r=>{
-        const icon=CUISINE_ICONS[r.cuisine]||'📦';
-        out+='<div style="background:#fff;border:1px solid #fed7aa;border-radius:6px;padding:5px 10px;font-size:11px">';
-        out+=icon+' <b>+'+r.vendorsToAdd+'</b> '+r.cuisine;
-        out+='<span style="color:var(--muted);font-size:9px;margin-left:4px">(mature: '+r.matureAvg.toFixed(1)+'/day &rarr; +'+r.uplift+'/day)</span></div>';
-      });
-      out+='</div>';
-      if(missingKey.length){
-        out+='<div style="margin-top:8px;font-size:10px;color:var(--muted)"><b>Missing key verticals:</b> ';
-        out+=missingKey.map(k=>{const avg=NATL_AVG[k]||10;const n=Math.max(2,Math.round(gapPerCuisine/avg));return'<span style="background:#f3f4f6;padding:2px 6px;border-radius:4px;margin:2px">'+CUISINE_ICONS[k]||'📦'+' +'+n+' '+k+' (natl avg ~'+avg+'/day)</span>';}).join('');
-        out+='</div>';
-      }
-      out+='</div>';
-    }
     // Detailed table
     out+='<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Active Vendor Performance by Cuisine</div>';
     out+='<div style="overflow-x:auto"><table style="font-size:11px"><thead><tr>';

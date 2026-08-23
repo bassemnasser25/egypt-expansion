@@ -794,15 +794,50 @@ function buildCityPage(pageId){
     html+='<div style="margin-top:10px;padding:10px;background:#dcfce7;border-radius:8px;font-size:11px;font-weight:700;color:#166534">Total expected daily uplift: +'+expDailyTotal+' orders/day<br><span style="font-weight:400;color:var(--grn)">Projected new daily: '+fmt(daily+expDailyTotal)+' orders/day</span></div>';
   }
   html+='</div></div>';
-  html+='<div class="section-card"><h3>Vertical Gap &mdash; '+cityName+'</h3><div class="section-sub">Target: 10 Supermarkets · 5 Pharmacies · 5 Dairy · 2 Nuts · 2 Bakeries</div><div class="vert-grid">';
-  VERT_META.forEach(vm=>{
-    const cv=vert[vm.key]||0,t=V_TARGETS[vm.key],fp=Math.min(100,Math.round(cv/t*100));
-    html+='<div class="vert-box"><div style="font-size:11px;font-weight:800;color:'+vm.color+';margin-bottom:3px">'+vm.name+'</div>';
-    html+='<input type="number" min="0" value="'+cv+'" onchange="updateVert(\''+cityName+'\',\''+vm.key+'\',this.value)" style="width:50px;text-align:center;border:1px solid var(--border);border-radius:4px;padding:3px;font-size:13px;font-weight:700;color:'+(cv>=t?'var(--grn)':'var(--red)')+'"/>';
-    html+='<div style="font-size:9px;color:var(--muted)">/'+t+'</div>';
-    html+='<div style="height:4px;background:#e5e7eb;border-radius:2px;margin-top:6px;overflow:hidden"><div style="height:100%;border-radius:2px;background:'+vm.color+';width:'+fp+'%"></div></div></div>';
-  });
-  html+='</div></div>';
+  // Vertical Gap — real cuisine breakdown from CITY_VERT_DATA
+  const cityVertData=CITY_VERT_DATA&&CITY_VERT_DATA[cityName]?CITY_VERT_DATA[cityName]:{};
+  const cityVertCuisines=Object.entries(cityVertData).sort(([,a],[,b])=>b.totalDaily-a.totalDaily);
+  html+='<div class="section-card"><h3>Vertical Breakdown &mdash; '+cityName+'</h3>';
+  if(cityVertCuisines.length===0){
+    html+='<div style="color:var(--muted);font-size:12px;padding:12px 0">No cuisine data available for this city yet.</div>';
+  } else {
+    const cityGapTarget=50; // daily orders gap to close per cuisine opportunity
+    let totalVendorsNeeded=0,totalUplift=0;
+    html+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">';
+    html+='<thead><tr style="background:#f1f5f9;color:var(--muted);font-weight:700">';
+    html+='<th style="padding:6px 8px;text-align:left">Cuisine</th>';
+    html+='<th style="padding:6px 8px;text-align:center">Vendors</th>';
+    html+='<th style="padding:6px 8px;text-align:center">Curr avg/day</th>';
+    html+='<th style="padding:6px 8px;text-align:center">Mature avg/day</th>';
+    html+='<th style="padding:6px 8px;text-align:center">Total/day</th>';
+    html+='<th style="padding:6px 8px;text-align:center">To Add</th>';
+    html+='</tr></thead><tbody>';
+    cityVertCuisines.forEach(([cuis,d],i)=>{
+      const matureAvg=Math.max(d.avgPerVendor,NATL_AVG[cuis]||15);
+      const vendorsToAdd=matureAvg>0?Math.max(1,Math.round(cityGapTarget/matureAvg)):0;
+      const uplift=Math.round(vendorsToAdd*matureAvg);
+      totalVendorsNeeded+=vendorsToAdd;
+      totalUplift+=uplift;
+      const isLow=d.avgPerVendor<(NATL_AVG[cuis]||15)*0.6;
+      const bg=i%2===0?'#ffffff':'#f8fafc';
+      html+='<tr style="background:'+bg+';border-bottom:1px solid #f1f5f9">';
+      html+='<td style="padding:5px 8px;font-weight:700;color:var(--dk);text-transform:capitalize">'+cuis+'</td>';
+      html+='<td style="padding:5px 8px;text-align:center;color:var(--dk)">'+d.vendors+'</td>';
+      html+='<td style="padding:5px 8px;text-align:center;color:'+(isLow?'var(--red)':'var(--grn)')+'">'+d.avgPerVendor.toFixed(1)+'</td>';
+      html+='<td style="padding:5px 8px;text-align:center;font-weight:700;color:var(--org)">'+matureAvg.toFixed(1)+'</td>';
+      html+='<td style="padding:5px 8px;text-align:center;color:var(--dk)">'+d.totalDaily.toFixed(0)+'</td>';
+      html+='<td style="padding:5px 8px;text-align:center;font-weight:800;color:var(--blu)">+'+vendorsToAdd+'</td>';
+      html+='</tr>';
+    });
+    html+='<tr style="background:#f0fdf4;font-weight:800;border-top:2px solid #bbf7d0">';
+    html+='<td style="padding:6px 8px;color:#166534">Total</td>';
+    html+='<td colspan="4" style="padding:6px 8px;text-align:right;color:#166534;font-size:10px">Expected uplift: +'+totalUplift+' orders/day</td>';
+    html+='<td style="padding:6px 8px;text-align:center;color:#166534">+'+totalVendorsNeeded+'</td>';
+    html+='</tr>';
+    html+='</tbody></table></div>';
+    html+='<div style="font-size:9px;color:var(--muted);margin-top:6px">* Mature avg = max(current avg, national avg by cuisine). New vendors grow 2-3x in 6 months.</div>';
+  }
+  html+='</div>';
   el.innerHTML=html;
 }
 function buildGrowth(){
@@ -924,9 +959,12 @@ function buildVerticals(){
     const topN=Math.min(6,Math.max(1,cuisines.length));
     const gapPerCuisine=gap/topN;
     const planRows=cuisines.map(([cuis,d])=>{
-      const vendorsToAdd=d.avgPerVendor>0?Math.max(1,Math.round(gapPerCuisine/d.avgPerVendor)):0;
-      const uplift=Math.round(vendorsToAdd*d.avgPerVendor);
-      return{cuisine:cuis,...d,vendorsToAdd,uplift};
+      // Use mature vendor productivity: max of (current avg, national avg, 15 min)
+      // Rationale: new vendor at 8/day today will reach 20+/day in 6 months
+      const matureAvg=Math.max(d.avgPerVendor,NATL_AVG[cuis]||15);
+      const vendorsToAdd=matureAvg>0?Math.max(1,Math.round(gapPerCuisine/matureAvg)):0;
+      const uplift=Math.round(vendorsToAdd*matureAvg);
+      return{cuisine:cuis,...d,vendorsToAdd,uplift,matureAvg};
     }).filter(r=>r.totalDaily>0||r.vendorsToAdd>0);
     // Missing key verticals (not in current active list)
     const presentCuisines=new Set(cuisines.map(([c])=>c));
@@ -952,7 +990,7 @@ function buildVerticals(){
         const icon=CUISINE_ICONS[r.cuisine]||'📦';
         out+='<div style="background:#fff;border:1px solid #fed7aa;border-radius:6px;padding:5px 10px;font-size:11px">';
         out+=icon+' <b>+'+r.vendorsToAdd+'</b> '+r.cuisine;
-        out+='<span style="color:var(--muted);font-size:9px;margin-left:4px">('+r.avgPerVendor+'/day avg &rarr; +'+r.uplift+'/day)</span></div>';
+        out+='<span style="color:var(--muted);font-size:9px;margin-left:4px">(mature: '+r.matureAvg.toFixed(1)+'/day &rarr; +'+r.uplift+'/day)</span></div>';
       });
       out+='</div>';
       if(missingKey.length){
@@ -965,7 +1003,7 @@ function buildVerticals(){
     // Detailed table
     out+='<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Active Vendor Performance by Cuisine</div>';
     out+='<div style="overflow-x:auto"><table style="font-size:11px"><thead><tr>';
-    out+='<th>Cuisine</th><th style="text-align:right">Active Vendors</th><th style="text-align:right">Avg/Vendor/Day</th><th style="text-align:right">Total/Day</th><th style="text-align:right">Vendors to Add</th><th style="text-align:right">Expected Uplift</th></tr></thead><tbody>';
+    out+='<th>Cuisine</th><th style="text-align:right">Active Vendors</th><th style="text-align:right">Curr Avg/Day</th><th style="text-align:right">Mature Avg/Day</th><th style="text-align:right">Total/Day</th><th style="text-align:right">Vendors to Add</th><th style="text-align:right">Expected Uplift</th></tr></thead><tbody>';
     planRows.forEach(r=>{
       const icon=CUISINE_ICONS[r.cuisine]||'📦';
       const perfColor=r.avgPerVendor>=20?'var(--grn)':r.avgPerVendor>=10?'var(--org)':'var(--red)';
@@ -973,6 +1011,7 @@ function buildVerticals(){
       out+='<td style="font-weight:600">'+icon+' '+r.cuisine+'</td>';
       out+='<td style="text-align:right">'+r.vendors+'</td>';
       out+='<td style="text-align:right;font-weight:700;color:'+perfColor+'">'+r.avgPerVendor+'</td>';
+      out+='<td style="text-align:right;font-weight:700;color:var(--org)">'+r.matureAvg.toFixed(1)+'</td>';
       out+='<td style="text-align:right;font-weight:700">'+r.totalDaily+'</td>';
       out+='<td style="text-align:right;color:var(--org);font-weight:700">'+(r.vendorsToAdd>0?'+'+r.vendorsToAdd:'—')+'</td>';
       out+='<td style="text-align:right;color:var(--grn);font-weight:700">'+(r.uplift>0?'+'+r.uplift+'/day':'—')+'</td>';

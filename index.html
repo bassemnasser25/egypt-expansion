@@ -881,6 +881,14 @@ function buildCityPage(pageId){
   html+='</div>';
   el.innerHTML=html;
 }
+function growthToggle(id){
+  const el=document.getElementById(id);
+  if(!el)return;
+  const isOpen=el.style.display!=='none';
+  el.style.display=isOpen?'none':'block';
+  const btn=document.getElementById(id+'-btn');
+  if(btn)btn.textContent=isOpen?'▼ Details':'▲ Close';
+}
 function buildGrowth(){
   if(GROWTH_TRACKER_DATA===null){
     document.getElementById('growth-rows').innerHTML='<div style="text-align:center;padding:30px;color:var(--muted)"><em>Loading growth data...</em></div>';
@@ -893,22 +901,64 @@ function buildGrowth(){
     return;
   }
   if(VENDOR_GROWTH_DATA===null)VENDOR_GROWTH_DATA=STATIC_VENDOR_GROWTH_DATA;
-  const MONTHS=['Dec','Jan','Feb','Mar','Apr','May','Jun','Jul'];
+  const MONTHS_LONG=['Dec-25','Jan-26','Feb-26','Mar-26','Apr-26','May-26','Jun-26','Jul-26'];
+  const MONTHS_SHORT=['Dec','Jan','Feb','Mar','Apr','May','Jun','Jul'];
   const KEYS=['dec25','jan26','feb26','mar26','apr26','may26','jun26','jul26'];
+  const SHEET_URL='https://docs.google.com/spreadsheets/d/1eg0_2PFqSP_kIg_-LxJ5kOqMwyf2eEtXe4F5xTkzuGQ/edit?gid=911376423#gid=911376423';
+  function totalGrowthPct(vals){
+    const start=vals[0]||0,end=vals[7]||0;
+    if(!start)return null;
+    return Math.round((end-start)/start*100);
+  }
+  function growthBadge(pct,label){
+    if(pct===null)return'';
+    const col=pct>20?'#16a34a':pct>0?'#22c55e':pct<-10?'#dc2626':'#f97316';
+    const bg=pct>20?'#dcfce7':pct>0?'#f0fdf4':pct<-10?'#fee2e2':'#fff7ed';
+    return'<span title="'+label+' Dec-25 → Jul-26" style="font-size:9px;font-weight:700;color:'+col+';background:'+bg+';border:1px solid '+col+'44;padding:1px 5px;border-radius:4px;white-space:nowrap">'+(pct>0?'+':'')+pct+'%</span>';
+  }
   function sparkline(vals,col){
     const max=Math.max(...vals.filter(v=>v>0),1);
     return vals.map((v,i)=>{
       const h=Math.max(3,Math.round((v/max)*28));
       const bg=i===7?col:i===6?col+'bb':col+'55';
-      return'<div style="width:7px;height:'+h+'px;background:'+bg+';border-radius:2px 2px 0 0;align-self:flex-end" title="'+MONTHS[i]+': '+Math.round(v).toLocaleString()+'"></div>';
+      return'<div style="width:7px;height:'+h+'px;background:'+bg+';border-radius:2px 2px 0 0;align-self:flex-end" title="'+MONTHS_SHORT[i]+': '+Math.round(v).toLocaleString()+'"></div>';
     }).join('');
+  }
+  function momDetailTable(orders,vendors,chains){
+    let t='<table style="width:100%;border-collapse:collapse;font-size:9px;margin-top:8px">';
+    t+='<thead><tr style="background:#f8fafc">';
+    t+='<th style="padding:3px 5px;text-align:left;color:var(--muted);font-weight:600;border-bottom:1px solid #e5e7eb">Month</th>';
+    t+='<th style="padding:3px 4px;text-align:right;color:#FF5900;font-weight:700;border-bottom:1px solid #e5e7eb">Orders</th>';
+    t+='<th style="padding:3px 4px;text-align:right;color:#FF5900;font-weight:600;border-bottom:1px solid #e5e7eb">Δ%</th>';
+    t+='<th style="padding:3px 4px;text-align:right;color:#3b82f6;font-weight:700;border-bottom:1px solid #e5e7eb">Vendors</th>';
+    t+='<th style="padding:3px 4px;text-align:right;color:#3b82f6;font-weight:600;border-bottom:1px solid #e5e7eb">Δ%</th>';
+    t+='<th style="padding:3px 4px;text-align:right;color:#8b5cf6;font-weight:700;border-bottom:1px solid #e5e7eb">Chains</th>';
+    t+='<th style="padding:3px 4px;text-align:right;color:#8b5cf6;font-weight:600;border-bottom:1px solid #e5e7eb">Δ%</th>';
+    t+='</tr></thead><tbody>';
+    MONTHS_LONG.forEach((m,i)=>{
+      const oVal=Math.round(orders[i]||0),vVal=vendors[i]||0,cVal=chains[i]||0;
+      const oPrev=orders[i-1]||0,vPrev=vendors[i-1]||0,cPrev=chains[i-1]||0;
+      const oPct=i>0&&oPrev?Math.round((oVal-oPrev)/oPrev*100):null;
+      const vPct=i>0&&vPrev?Math.round((vVal-vPrev)/vPrev*100):null;
+      const cPct=i>0&&cPrev?Math.round((cVal-cPrev)/cPrev*100):null;
+      function fmtPct(p){if(p===null)return'<td style="padding:3px 4px;text-align:right;color:#cbd5e1">—</td>';const col=p>5?'#16a34a':p<-2?'#dc2626':'#64748b';return'<td style="padding:3px 4px;text-align:right;color:'+col+';font-weight:700">'+(p>0?'+':'')+p+'%</td>';}
+      const isBg=i===7?'background:#fff7ed;font-weight:800':'';
+      t+='<tr style="'+isBg+';border-bottom:1px solid #f1f5f9">';
+      t+='<td style="padding:3px 5px;font-weight:'+(i===7?'800':'600')+';color:'+(i===7?'var(--org)':'var(--muted)')+'">'+m+'</td>';
+      t+='<td style="padding:3px 4px;text-align:right;font-weight:'+(i===7?'800':'600')+'">'+oVal.toLocaleString()+'</td>'+fmtPct(oPct);
+      t+='<td style="padding:3px 4px;text-align:right;font-weight:'+(i===7?'800':'600')+'">'+vVal+'</td>'+fmtPct(vPct);
+      t+='<td style="padding:3px 4px;text-align:right;font-weight:'+(i===7?'800':'600')+'">'+cVal+'</td>'+fmtPct(cPct);
+      t+='</tr>';
+    });
+    t+='</tbody></table>';
+    return t;
   }
   const growEntries=Object.entries(GROWTH_TRACKER_DATA).filter(([city])=>city!=='Cairo').sort(([,a],[,b])=>b.jul26-a.jul26);
   const positiveJul=growEntries.filter(([,d])=>parseFloat(d.momJul)>0);
   const negativeJul=growEntries.filter(([,d])=>parseFloat(d.momJul)<-2);
   let html='';
-  // Summary chips
-  html+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">';
+  // Top bar: summary chips + sheet link
+  html+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:stretch;margin-bottom:14px">';
   html+='<div style="background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:8px 12px;font-size:11px;flex:1;min-width:180px"><strong style="color:var(--grn)">▲ Growing Jul-26</strong><br>';
   html+=positiveJul.map(([city,d])=>'<span style="margin-right:8px"><b>'+city+'</b> <span style="color:var(--grn)">'+d.momJul+'</span></span>').join('');
   html+='</div>';
@@ -917,17 +967,18 @@ function buildGrowth(){
     html+=negativeJul.map(([city,d])=>'<span style="margin-right:8px"><b>'+city+'</b> <span style="color:var(--red)">'+d.momJul+'</span></span>').join('');
     html+='</div>';
   }
+  html+='<a href="'+SHEET_URL+'" target="_blank" style="display:flex;align-items:center;gap:6px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:8px 14px;font-size:11px;font-weight:700;color:var(--org);text-decoration:none;white-space:nowrap">📊 Open Sheet</a>';
   html+='</div>';
   // Legend
   html+='<div style="display:flex;gap:12px;margin-bottom:10px;font-size:10px;color:var(--muted);align-items:center">';
   html+='<span><span style="display:inline-block;width:10px;height:10px;background:#FF5900;border-radius:2px;margin-right:4px"></span>Orders/day</span>';
   html+='<span><span style="display:inline-block;width:10px;height:10px;background:#3b82f6;border-radius:2px;margin-right:4px"></span>Vendors</span>';
   html+='<span><span style="display:inline-block;width:10px;height:10px;background:#8b5cf6;border-radius:2px;margin-right:4px"></span>Chains</span>';
-  html+='<span style="margin-left:auto">Bars: Dec → Jul-26 (darker = recent)</span>';
+  html+='<span style="margin-left:auto;font-size:9px">Badges = total growth Dec-25→Jul-26 | Click card for MoM detail</span>';
   html+='</div>';
   // City cards
   html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:10px">';
-  growEntries.forEach(([city,d])=>{
+  growEntries.forEach(([city,d],idx)=>{
     const cityObj=CITIES.find(c=>c.city===city);
     const vd=VENDOR_GROWTH_DATA[city]||null;
     const isPriority=cityObj?.priority;
@@ -936,19 +987,31 @@ function buildGrowth(){
     const orders=KEYS.map(k=>d[k]||0);
     const vendors=vd?vd.v:[0,0,0,0,0,0,0,0];
     const chains=vd?vd.c:[0,0,0,0,0,0,0,0];
+    // Total Dec→Jul growth
+    const oPct=totalGrowthPct(orders),vPct=totalGrowthPct(vendors),cPct=totalGrowthPct(chains);
     const metrics=[
       {label:'Orders/day',vals:orders,col:'#FF5900'},
       {label:'Vendors',vals:vendors,col:'#3b82f6'},
       {label:'Chains',vals:chains,col:'#8b5cf6'}
     ];
-    html+='<div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px">';
-    html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px">';
+    const detailId='growth-detail-'+idx;
+    html+='<div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px;cursor:pointer" onclick="growthToggle(\''+detailId+'\')">';
+    // Header row: city + cluster + total growth badges
+    html+='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">';
+    html+='<div style="display:flex;flex-direction:column;gap:4px">';
     html+='<div style="display:flex;align-items:center;gap:5px">';
     html+='<span style="font-weight:800;font-size:13px;color:var(--dk)">'+(isPriority?'🎯 ':'')+city+'</span>';
     html+='<span style="background:#f1f5f9;color:var(--muted);font-size:9px;padding:2px 5px;border-radius:4px">'+(cityObj?.cluster||'')+'</span>';
     html+='</div>';
-    html+='<span style="font-size:10px;font-weight:700;color:'+momCol+'">'+( julMom>0?'+':'')+julMom+'% MoM</span>';
-    html+='</div>';
+    // Total growth badges row
+    html+='<div style="display:flex;gap:4px;flex-wrap:wrap">';
+    html+=growthBadge(oPct,'Orders')+growthBadge(vPct,'Vendors')+growthBadge(cPct,'Chains');
+    html+='</div></div>';
+    html+='<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">';
+    html+='<span style="font-size:10px;font-weight:700;color:'+momCol+'">'+(julMom>0?'+':'')+julMom+'% MoM</span>';
+    html+='<span id="'+detailId+'-btn" style="font-size:9px;color:var(--org);font-weight:600">▼ Details</span>';
+    html+='</div></div>';
+    // Sparkline metric rows (always visible)
     metrics.forEach(m=>{
       const curr=m.vals[7],prev=m.vals[6]||0;
       const pct=prev>0?Math.round((curr-prev)/prev*100):null;
@@ -960,6 +1023,11 @@ function buildGrowth(){
       html+=pct!==null?'<span style="font-size:9px;font-weight:700;color:'+pctCol+';padding-bottom:2px;min-width:32px;text-align:right">'+(pct>0?'+':'')+pct+'%</span>':'<span style="width:32px"></span>';
       html+='</div>';
     });
+    // Expandable MoM detail table
+    html+='<div id="'+detailId+'" style="display:none;overflow:hidden">';
+    html+='<div style="height:1px;background:#f1f5f9;margin:8px 0"></div>';
+    html+=momDetailTable(orders,vendors,chains);
+    html+='</div>';
     html+='</div>';
   });
   html+='</div>';
@@ -968,7 +1036,7 @@ function buildGrowth(){
   const chartCities=growEntries.filter(([,d])=>d.dec25||d.jan26).slice(0,6);
   const COLORS=['#FF5900','#3b82f6','#22c55e','#8b5cf6','#f59e0b','#ec4899'];
   mkChart('ch-growth','line',{
-    labels:['Dec-25','Jan-26','Feb-26','Mar-26','Apr-26','May-26','Jun-26','Jul-26'],
+    labels:MONTHS_LONG,
     datasets:chartCities.map(([city,d],i)=>({
       label:city,data:KEYS.map(k=>d[k]||null),
       borderColor:COLORS[i%COLORS.length],backgroundColor:COLORS[i%COLORS.length]+'20',

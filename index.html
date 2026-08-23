@@ -182,7 +182,7 @@ tr:hover td{background:#fafafa}
           <div class="section-sub">Sorted by daily LS orders &middot; NFV (Local Shops) only</div>
           <div class="tbl-wrap">
             <table>
-              <thead><tr><th>#</th><th>City</th><th>Cluster</th><th>Daily Jun</th><th>Period Ord.</th><th>Daily Baseline</th><th style="color:var(--lim)">vs Daily tMart</th><th>Gap/Day</th><th>Vendors</th><th>ADT</th><th>Status</th></tr></thead>
+              <thead><tr><th>#</th><th>City</th><th>Cluster</th><th>Daily Jun</th><th>Period Ord.</th><th>Daily Baseline</th><th style="color:var(--lim)">vs Daily tMart</th><th>Gap/Day</th><th>Branches</th><th>ADT</th><th>Status</th></tr></thead>
               <tbody id="all-tbody"></tbody>
             </table>
           </div>
@@ -206,7 +206,7 @@ tr:hover td{background:#fafafa}
           <h3>All 19 Cities &mdash; Performance Table (Daily Orders)</h3>
           <div class="tbl-wrap">
             <table>
-              <thead><tr><th>#</th><th>City</th><th>Cluster</th><th>Priority</th><th>Daily Jun</th><th>Daily Baseline</th><th>MoM</th><th>Daily tMart</th><th>Gap/Day</th><th>Vendors</th><th>ADT</th><th>Status</th></tr></thead>
+              <thead><tr><th>#</th><th>City</th><th>Cluster</th><th>Priority</th><th>Daily Jun</th><th>Daily Baseline</th><th>MoM</th><th>Daily tMart</th><th>Gap/Day</th><th>Branches</th><th>ADT</th><th>Status</th></tr></thead>
               <tbody id="full-tbody"></tbody>
             </table>
           </div>
@@ -690,9 +690,9 @@ const PAGE_META={
   'p-assiut':['Assiut','Upper Egypt · Priority City'],
   'p-minya':['Minya','Upper Egypt · Open Market'],
   'all-cities':['All 19 Cities','Full Egypt NFV city performance'],
-  verticals:['Vertical Gap Analysis','Live acquisition plan · vendors needed per vertical to hit tMart benchmark'],
+  verticals:['Vertical Gap Analysis','Live acquisition plan · branches needed per vertical to hit tMart benchmark'],
   pipeline:['Leads & Pipeline','Active vendor acquisition pipeline'],
-  churned:['Churned Accounts','Vendors that went live but have zero orders now'],
+  churned:['Churned Accounts','Branches that went live but have zero orders now'],
 };
 let currentPage='overview';
 function buildCurrentPage(){
@@ -740,7 +740,7 @@ function buildOverview(){
   document.getElementById('overview-kpis').innerHTML=
     '<div class="kpi-card"><div class="kpi-label">Total Daily LS</div><div class="kpi-val org">'+fmt(totDailyLS)+'</div><div class="kpi-sub">'+filtered.length+' cities · live baseline</div></div>'+
     '<div class="kpi-card"><div class="kpi-label">Priority Cities</div><div class="kpi-val">'+pcards.length+'</div><div class="kpi-sub">Canal + Upper Egypt</div></div>'+
-    '<div class="kpi-card"><div class="kpi-label">Active Vendors</div><div class="kpi-val org">'+totVend+'</div><div class="kpi-sub">Local Shops total</div></div>'+
+    '<div class="kpi-card"><div class="kpi-label">Active Branches</div><div class="kpi-val org">'+totVend+'</div><div class="kpi-sub">Local Shops total</div></div>'+
     '<div class="kpi-card"><div class="kpi-label">Pipeline + Leads</div><div class="kpi-val">'+pipeCount+'</div><div class="kpi-sub">expected +'+fmt(expDaily)+' daily</div></div>'+
     '<div class="kpi-card"><div class="kpi-label">Data Source</div><div class="kpi-val '+(DATA_SOURCE==='sheet'?'grn':'')+'" style="font-size:12px">'+(DATA_SOURCE==='sheet'?'&#9679; Live':'&#9651; Cached')+'</div><div class="kpi-sub">'+DATA_DATE+'</div></div>';
   document.getElementById('priority-cards').innerHTML=pcards.map(c=>{
@@ -818,7 +818,7 @@ function buildCityPage(pageId){
   const vendorsWithOrders=Object.values(cityVD).reduce((s,v)=>s+(v.vendors||0),0);
   const vendorDisplay=vendorsWithOrders>0?vendorsWithOrders:c.vendors;
   const vendorSub=vendorsWithOrders>0&&c.vendors!==vendorsWithOrders?vendorsWithOrders+' w/ orders / '+c.vendors+' total':'~'+avg+'/vendor/day';
-  html+='<div class="kpi-card"><div class="kpi-label">Vendors</div><div class="kpi-val">'+vendorDisplay+'</div><div class="kpi-sub">'+vendorSub+'</div></div>';
+  html+='<div class="kpi-card"><div class="kpi-label">Branches</div><div class="kpi-val">'+vendorDisplay+'</div><div class="kpi-sub">'+vendorSub+'</div></div>';
   html+='<div class="kpi-card"><div class="kpi-label">ADT</div><div class="kpi-val" style="color:'+adtColor+'">'+(c.adt??'&mdash;')+'</div><div class="kpi-sub">min avg delivery</div></div>';
   html+='</div>';
   html+='<div class="city-page-grid">';
@@ -853,7 +853,7 @@ function buildCityPage(pageId){
   const cityTotalNeeded=cityGapRows.reduce((s,r)=>s+r.gap,0);
   const cityTotalUplift=cityGapRows.reduce((s,r)=>s+r.uplift,0);
   html+='<div class="section-card"><h3>Vertical Targets &mdash; '+cityName+'</h3>';
-  html+='<div class="section-sub">Same targets as Vertical Gap page · Need <b style="color:var(--bur)">+'+cityTotalNeeded+'</b> vendors → <b style="color:var(--grn)">+'+cityTotalUplift+'</b> orders/day</div>';
+  html+='<div class="section-sub">Same targets as Vertical Gap page · Need <b style="color:var(--bur)">+'+cityTotalNeeded+'</b> branches → <b style="color:var(--grn)">+'+cityTotalUplift+'</b> orders/day</div>';
   html+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:8px">';
   html+='<thead><tr style="background:#ea580c;color:#fff;font-weight:700;font-size:10px">';
   html+='<th style="padding:6px 8px;text-align:left">Category</th>';
@@ -930,7 +930,7 @@ function buildGrowth(){
     t+='<th style="padding:3px 5px;text-align:left;color:var(--muted);font-weight:600;border-bottom:1px solid #e5e7eb">Month</th>';
     t+='<th style="padding:3px 4px;text-align:right;color:#FF5900;font-weight:700;border-bottom:1px solid #e5e7eb">Orders</th>';
     t+='<th style="padding:3px 4px;text-align:right;color:#FF5900;font-weight:600;border-bottom:1px solid #e5e7eb">Δ%</th>';
-    t+='<th style="padding:3px 4px;text-align:right;color:#3b82f6;font-weight:700;border-bottom:1px solid #e5e7eb">Vendors</th>';
+    t+='<th style="padding:3px 4px;text-align:right;color:#3b82f6;font-weight:700;border-bottom:1px solid #e5e7eb">Branches</th>';
     t+='<th style="padding:3px 4px;text-align:right;color:#3b82f6;font-weight:600;border-bottom:1px solid #e5e7eb">Δ%</th>';
     t+='<th style="padding:3px 4px;text-align:right;color:#8b5cf6;font-weight:700;border-bottom:1px solid #e5e7eb">Chains</th>';
     t+='<th style="padding:3px 4px;text-align:right;color:#8b5cf6;font-weight:600;border-bottom:1px solid #e5e7eb">Δ%</th>';
@@ -972,7 +972,7 @@ function buildGrowth(){
   // Legend
   html+='<div style="display:flex;gap:12px;margin-bottom:10px;font-size:10px;color:var(--muted);align-items:center">';
   html+='<span><span style="display:inline-block;width:10px;height:10px;background:#FF5900;border-radius:2px;margin-right:4px"></span>Orders/day</span>';
-  html+='<span><span style="display:inline-block;width:10px;height:10px;background:#3b82f6;border-radius:2px;margin-right:4px"></span>Vendors</span>';
+  html+='<span><span style="display:inline-block;width:10px;height:10px;background:#3b82f6;border-radius:2px;margin-right:4px"></span>Branches</span>';
   html+='<span><span style="display:inline-block;width:10px;height:10px;background:#8b5cf6;border-radius:2px;margin-right:4px"></span>Chains</span>';
   html+='<span style="margin-left:auto;font-size:9px">Badges = total growth Dec-25→Jul-26 | Click card for MoM detail</span>';
   html+='</div>';
@@ -991,7 +991,7 @@ function buildGrowth(){
     const oPct=totalGrowthPct(orders),vPct=totalGrowthPct(vendors),cPct=totalGrowthPct(chains);
     const metrics=[
       {label:'Orders/day',vals:orders,col:'#FF5900'},
-      {label:'Vendors',vals:vendors,col:'#3b82f6'},
+      {label:'Branches',vals:vendors,col:'#3b82f6'},
       {label:'Chains',vals:chains,col:'#8b5cf6'}
     ];
     const detailId='growth-detail-'+idx;
@@ -1005,7 +1005,7 @@ function buildGrowth(){
     html+='</div>';
     // Total growth badges row
     html+='<div style="display:flex;gap:4px;flex-wrap:wrap">';
-    html+=growthBadge(oPct,'Orders')+growthBadge(vPct,'Vendors')+growthBadge(cPct,'Chains');
+    html+=growthBadge(oPct,'Orders')+growthBadge(vPct,'Branches')+growthBadge(cPct,'Chains');
     html+='</div></div>';
     html+='<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">';
     html+='<span style="font-size:10px;font-weight:700;color:'+momCol+'">'+(julMom>0?'+':'')+julMom+'% MoM</span>';
@@ -1097,13 +1097,13 @@ function buildVerticals(){
     // Header
     out+='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">';
     out+='<div><h3 style="font-size:15px">'+(c.priority?'&#127919; ':'')+c.city+'</h3>';
-    out+='<div class="section-sub">'+c.cluster+' &middot; '+activeVendorCount+' vendors w/ orders &middot; '+c.vendors+' total active</div></div>';
-    out+='<div style="text-align:right"><div style="font-size:18px;font-weight:800;color:'+(totalVendorsNeeded===0?'var(--grn)':totalVendorsNeeded<=5?'var(--org)':'var(--red)')+'">'+totalVendorsNeeded+'</div><div style="font-size:9px;color:var(--muted)">vendors needed</div></div></div>';
+    out+='<div class="section-sub">'+c.cluster+' &middot; '+activeVendorCount+' branches w/ orders &middot; '+c.vendors+' total active</div></div>';
+    out+='<div style="text-align:right"><div style="font-size:18px;font-weight:800;color:'+(totalVendorsNeeded===0?'var(--grn)':totalVendorsNeeded<=5?'var(--org)':'var(--red)')+'">'+totalVendorsNeeded+'</div><div style="font-size:9px;color:var(--muted)">branches needed</div></div></div>';
     // Vendor Acquisition Targets Table
     out+='<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 14px;margin-bottom:12px">';
     out+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
     out+='<div style="font-size:10px;font-weight:700;color:var(--org);text-transform:uppercase;letter-spacing:.5px">🎯 Vendor Acquisition Targets</div>';
-    out+='<div style="font-size:10px;color:var(--muted)">Need <b style="color:var(--bur)">+'+totalVendorsNeeded+'</b> vendors &rarr; <b style="color:var(--grn)">+'+totalExpectedUplift+'</b> orders/day</div></div>';
+    out+='<div style="font-size:10px;color:var(--muted)">Need <b style="color:var(--bur)">+'+totalVendorsNeeded+'</b> branches &rarr; <b style="color:var(--grn)">+'+totalExpectedUplift+'</b> orders/day</div></div>';
     out+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">';
     out+='<thead><tr style="background:#ea580c;color:#fff;font-weight:700;font-size:10px">';
     out+='<th style="padding:6px 8px;text-align:left">Category</th>';
@@ -1128,16 +1128,16 @@ function buildVerticals(){
     });
     out+='<tr style="background:#f0fdf4;font-weight:800;border-top:2px solid #bbf7d0">';
     out+='<td style="padding:6px 8px;color:#166534">Total</td>';
-    out+='<td colspan="3" style="padding:6px 8px;text-align:center;color:#166534">+'+totalVendorsNeeded+' vendors needed</td>';
+    out+='<td colspan="3" style="padding:6px 8px;text-align:center;color:#166534">+'+totalVendorsNeeded+' branches needed</td>';
     out+='<td colspan="2" style="padding:6px 8px;text-align:center;color:#166534">+'+totalExpectedUplift+'/day expected</td>';
     out+='</tr></tbody></table></div>';
     out+='<div style="font-size:9px;color:var(--muted);margin-top:4px">* Temporary fixed targets for all cities. Supplements counted under Pharmacy. Avg/day = national mature benchmark.</div>';
     out+='</div>';
     // Detailed cuisine breakdown (raw active data)
     if(cuisines.length>0){
-      out+='<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;margin-top:10px">Current Active Vendors by Cuisine</div>';
+      out+='<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;margin-top:10px">Current Active Branches by Cuisine</div>';
       out+='<div style="overflow-x:auto"><table style="font-size:11px"><thead><tr>';
-      out+='<th>Cuisine</th><th style="text-align:right">Vendors</th><th style="text-align:right">Avg/Day</th><th style="text-align:right">Total/Day</th></tr></thead><tbody>';
+      out+='<th>Cuisine</th><th style="text-align:right">Branches</th><th style="text-align:right">Avg/Day</th><th style="text-align:right">Total/Day</th></tr></thead><tbody>';
       cuisines.forEach(([cuis,d])=>{
         const icon=CUISINE_ICONS[cuis]||'📦';
         const matureAvg=Math.max(d.avgPerVendor,NATL_AVG[cuis]||15);

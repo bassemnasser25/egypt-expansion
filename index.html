@@ -189,12 +189,12 @@ tr:hover td{background:#fafafa}
         </div>
       </div>
       <div id="page-growth" class="page">
-        <div class="section-card">
-          <h3>Growth Tracker &mdash; Daily Orders</h3>
-          <div class="section-sub">Jun 2026 baseline &rarr; Dec 2026 target (daily orders)</div>
-          <div style="height:220px;margin-bottom:14px"><canvas id="ch-growth"></canvas></div>
-          <div id="growth-rows"></div>
+        <div class="section-card" style="margin-bottom:14px">
+          <h3>NFV Growth Trend &mdash; Priority Cities</h3>
+          <div class="section-sub">Dec 2025 &rarr; Jul 2026 &middot; Avg daily orders &middot; Source: Tableau</div>
+          <div style="height:240px;margin-top:10px"><canvas id="ch-growth"></canvas></div>
         </div>
+        <div id="growth-rows"></div>
       </div>
       <div id="page-p-ismailia" class="page"></div>
       <div id="page-p-portsaid" class="page"></div>
@@ -264,6 +264,12 @@ tr:hover td{background:#fafafa}
 <script>
 const SHEET_ID='1aA_v8YjU96NBRo1yiKkJaHX1MLNhmuahOgJd0XaUU5k';
 const LEADS_SHEET='Leads';
+const INVENTORY_SHEET_ID='1CoslHVfWl_scxikyDONeWuPgAHOiqrTNAOp5bVpXr10';
+const GROWTH_SHEET_ID='1i1JEGgtFE6wDAoEHNAgfcePkoQEynmfaGX0bVt67H4k';
+// National avg daily orders per vendor by cuisine (from Aug 2026 active vendor data)
+const NATL_AVG={grocery:13.3,supermarket:24.6,supplements:11.3,specialty_store:5.0,cosmetics:16.1,fruits:21.3,'bakery & pastry':22.1,beverages:22.2,hypermarket:33.9,pharmacy:11.0,'pet shop':3.3,nuts:14.2,butchery:4.4,'nuts & dried fruit':12.0,'convenience store':8.0};
+// Key verticals every city should aim for
+const KEY_VERTICALS=['grocery','supermarket','supplements','pharmacy','fruits','bakery & pastry','beverages'];
 // Auto-calculate PERIOD_DAYS: days from last Monday up to and including today
 (function(){const d=new Date();const dow=d.getDay();window._PERIOD_DAYS=dow===0?7:dow;})();
 const PERIOD_DAYS=window._PERIOD_DAYS||4;
@@ -295,6 +301,8 @@ const DEFAULT_CITIES=[
 ];
 let CITIES=[],DATA_SOURCE='loading',DATA_DATE=_todayStr;
 let LEADS_FROM_SHEET=[];
+let CITY_VERT_DATA=null; // {city:{cuisine:{vendors,totalDaily,avgPerVendor}}}
+let GROWTH_TRACKER_DATA=null; // {city:{dec25..jul26,momJan..momJul}}
 let activeFilters={cluster:'',owner:''};
 function csvLine(line){
   const f=[];let cur='',inQ=false;
@@ -413,6 +421,80 @@ async function loadLeadsFromSheet(){
   try{const text=await fetchCSV(LEADS_SHEET,6000);const parsed=parseLeadsCSV(text);if(parsed.length){LEADS_FROM_SHEET=parsed;}}
   catch(e){console.warn('Leads sheet:',e.message);LEADS_FROM_SHEET=[];}
 }
+function parseCSVFull(csv){
+  const rows=[];let current='',inQuotes=false,row=[];
+  for(let i=0;i<csv.length;i++){
+    const c=csv[i];
+    if(c==='"'){inQuotes=!inQuotes;}
+    else if(c===','&&!inQuotes){row.push(current.trim());current='';}
+    else if((c==='\n'||c==='\r')&&!inQuotes){if(current||row.length){row.push(current.trim());rows.push(row);}row=[];current='';}
+    else{current+=c;}
+  }
+  if(current||row.length){row.push(current.trim());rows.push(row);}
+  return rows;
+}
+async function loadInventoryData(){
+  try{
+    const url=`https://docs.google.com/spreadsheets/d/${INVENTORY_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1&t=${Date.now()}`;
+    const resp=await fetch(url,{credentials:'include',cache:'no-store'});
+    const text=await resp.text();
+    if(text.trim().startsWith('<'))throw new Error('Not accessible');
+    const rows=parseCSVFull(text);
+    const data=rows.slice(1).filter(r=>r[9]);
+    // Cols: 0=chain_id,1=chain_name,2=vendor_id,3=vendor_name,4=sf_id,5=first_online
+    //       6=shop_type,7=main_cuisine,8=month,9=city,10=AM,11=daily_orders
+    const months=[...new Set(data.map(r=>r[8]))].sort();
+    const lastTwo=months.slice(-2);
+    // Active = orders>0 in last 2 months
+    const activeVendors=new Set();
+    data.forEach(r=>{if(lastTwo.includes(r[8])&&parseFloat(r[11])>0)activeVendors.add(r[2]);});
+    // Per-vendor avg across last 2 months
+    const vstats={};
+    data.forEach(r=>{
+      if(!activeVendors.has(r[2])||!lastTwo.includes(r[8]))return;
+      if(!vstats[r[2]])vstats[r[2]]={city:r[9],cuisine:r[7]||'Other',months:{}};
+      vstats[r[2]].months[r[8]]=parseFloat(r[11])||0;
+    });
+    Object.values(vstats).forEach(v=>{const vals=Object.values(v.months);v.avgDaily=vals.reduce((a,b)=>a+b,0)/vals.length;});
+    // Aggregate by city+cuisine
+    const cd={};
+    Object.values(vstats).forEach(v=>{
+      const city=v.city,cuis=v.cuisine;
+      if(!cd[city])cd[city]={};
+      if(!cd[city][cuis])cd[city][cuis]={vendors:0,totalDaily:0};
+      cd[city][cuis].vendors++;cd[city][cuis].totalDaily+=v.avgDaily;
+    });
+    Object.values(cd).forEach(cuisines=>Object.values(cuisines).forEach(d=>{
+      d.avgPerVendor=Math.round(d.totalDaily/d.vendors*10)/10;
+      d.totalDaily=Math.round(d.totalDaily*10)/10;
+    }));
+    delete cd['Cairo_inactive'];delete cd['OLD NC'];
+    CITY_VERT_DATA=cd;
+    console.log('Inventory loaded:',Object.keys(cd).length,'cities,',activeVendors.size,'active vendors');
+  }catch(e){console.warn('Inventory load failed:',e.message);CITY_VERT_DATA={};}
+}
+async function loadGrowthData(){
+  try{
+    const url=`https://docs.google.com/spreadsheets/d/${GROWTH_SHEET_ID}/gviz/tq?tqx=out:csv&gid=0&t=${Date.now()}`;
+    const resp=await fetch(url,{credentials:'include',cache:'no-store'});
+    const text=await resp.text();
+    if(text.trim().startsWith('<'))throw new Error('Not accessible');
+    const rows=parseCSVFull(text);
+    const parseN=v=>parseFloat((v||'').replace(/,/g,''))||0;
+    const result={};
+    rows.slice(1).filter(r=>r[0]&&r[0].trim()).forEach(r=>{
+      const city=r[0].trim();
+      result[city]={
+        dec25:parseN(r[1]),jan26:parseN(r[2]),feb26:parseN(r[3]),mar26:parseN(r[4]),
+        apr26:parseN(r[5]),may26:parseN(r[6]),jun26:parseN(r[7]),jul26:parseN(r[8]),
+        momJan:r[9]||'',momFeb:r[10]||'',momMar:r[11]||'',momApr:r[12]||'',
+        momMay:r[13]||'',momJun:r[14]||'',momJul:r[15]||''
+      };
+    });
+    GROWTH_TRACKER_DATA=result;
+    console.log('Growth tracker loaded:',Object.keys(result).length,'cities');
+  }catch(e){console.warn('Growth data load failed:',e.message);GROWTH_TRACKER_DATA={};}
+}
 function setBadge(html){const el=document.getElementById('data-badge');if(el)el.innerHTML=html;}
 const dailyEst=c=>c.periodOrders!=null?Math.round(c.periodOrders/PERIOD_DAYS):null;
 const dailyLS=c=>dailyEst(c)??c.ls;
@@ -488,7 +570,7 @@ const PAGE_META={
   'p-assiut':['Assiut','Upper Egypt · Priority City'],
   'p-minya':['Minya','Upper Egypt · Open Market'],
   'all-cities':['All 19 Cities','Full Egypt NFV city performance'],
-  verticals:['Vertical Gap Analysis','Target: 10 Super · 5 Pharma · 5 Dairy · 2 Nuts · 2 Bakery'],
+  verticals:['Vertical Gap Analysis','Live acquisition plan · vendors needed per vertical to hit tMart benchmark'],
   pipeline:['Leads & Pipeline','Active vendor acquisition pipeline'],
   churned:['Churned Accounts','Vendors that went live but have zero orders now'],
 };
@@ -653,28 +735,68 @@ function buildCityPage(pageId){
 }
 function buildGrowth(){
   const cities=getFiltered();
-  const months=['Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  function getDaily(c){
-    const jun=c.ls,aug=dailyEst(c);
-    const jul=aug!=null?Math.round((jun+aug)/2):null;
-    const dec=c.tmart>100?c.tmart:null;
-    const proj=dec!=null&&aug!=null?(dec-aug)/4:null;
-    return{jun,jul,aug,sep:aug!=null&&proj!=null?Math.round(aug+proj):null,oct:aug!=null&&proj!=null?Math.round(aug+proj*2):null,nov:aug!=null&&proj!=null?Math.round(aug+proj*3):null,dec};
+  // Use real Tableau data from growth tracker sheet
+  if(!GROWTH_TRACKER_DATA||Object.keys(GROWTH_TRACKER_DATA).length===0){
+    document.getElementById('growth-rows').innerHTML='<div style="text-align:center;padding:30px;color:var(--muted)"><em>Loading growth data from Tableau...</em></div>';
+    loadGrowthData().then(()=>{if(currentPage==='growth')buildGrowth();});
+    return;
   }
-  function chip(v,base){if(!v||!base)return'<span class="chip flat">&mdash;</span>';const p=((v-base)/base*100).toFixed(0);return v===base?'<span class="chip flat">0%</span>':+p>0?'<span class="chip up">+'+p+'%</span>':'<span class="chip down">'+p+'%</span>';}
-  let hdr='<div class="growth-grid growth-hdr"><div class="growth-cell city-col">City</div>';
-  months.forEach((m,i)=>{hdr+='<div class="growth-cell">'+m+'<br><span style="color:'+(i===0?'#60a5fa':i===2?'#4ade80':'#9ca3af')+';font-size:8px">'+(i===0?'Base':i===2?'Live':'Proj')+'</span></div>';});
-  hdr+='</div>';
-  const rows=cities.map(c=>{
-    const m=getDaily(c);
-    const navId='p-'+c.city.toLowerCase().replace(/ /g,'');
-    return '<div class="growth-grid" style="border-bottom:1px solid #f1f5f9"><div class="growth-cell city-col" style="cursor:pointer;color:var(--org)" onclick="nav(\''+navId+'\')">'+(c.priority?'&#127919; ':'')+c.city+'</div><div class="growth-cell"><span class="chip base">'+fmt(m.jun)+'</span></div><div class="growth-cell">'+(m.jul!=null?'<span class="chip flat">'+fmt(m.jul)+'</span>':'&mdash;')+'</div><div class="growth-cell">'+(m.aug!=null?chip(m.aug,m.jun)+'<br><small style="font-size:8px;color:var(--muted)">'+fmt(m.aug)+'</small>':'&mdash;')+'</div><div class="growth-cell">'+(m.sep!=null?chip(m.sep,m.jun):'&mdash;')+'</div><div class="growth-cell">'+(m.oct!=null?chip(m.oct,m.jun):'&mdash;')+'</div><div class="growth-cell">'+(m.nov!=null?chip(m.nov,m.jun):'&mdash;')+'</div><div class="growth-cell">'+(m.dec!=null?chip(m.dec,m.jun):'&mdash;')+'</div></div>';
-  }).join('');
-  document.getElementById('growth-rows').innerHTML=hdr+rows;
-  const pc=CITIES.filter(c=>c.priority),COLORS=['#FF5900','#3b82f6','#22c55e','#8b5cf6','#f59e0b'];
+  function momChip(val){
+    if(!val)return'<span style="color:var(--muted);font-size:9px">&mdash;</span>';
+    const n=parseFloat(val);
+    if(isNaN(n))return'<span class="chip flat" style="font-size:9px">'+val+'</span>';
+    if(n>5)return'<span class="chip up" style="font-size:9px">'+val+'</span>';
+    if(n<-2)return'<span class="chip down" style="font-size:9px">'+val+'</span>';
+    return'<span class="chip flat" style="font-size:9px">'+val+'</span>';
+  }
+  const fmtN=v=>v?Math.round(v).toLocaleString():'&mdash;';
+  const growEntries=Object.entries(GROWTH_TRACKER_DATA).sort(([,a],[,b])=>b.jul26-a.jul26);
+  const positiveJul=growEntries.filter(([,d])=>d.momJul&&parseFloat(d.momJul)>0);
+  const negativeJul=growEntries.filter(([,d])=>d.momJul&&parseFloat(d.momJul)<-2);
+  let html='';
+  html+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">';
+  html+='<div style="background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:8px 12px;font-size:11px;flex:1;min-width:200px"><strong style="color:var(--grn)">&#9650; Growing in Jul-26</strong><br><span style="line-height:1.8">';
+  html+=positiveJul.map(([city,d])=>'<span style="margin-right:8px"><b>'+city+'</b> <span style="color:var(--grn)">'+d.momJul+'</span></span>').join('');
+  html+='</span></div>';
+  if(negativeJul.length){
+    html+='<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:8px 12px;font-size:11px;min-width:200px"><strong style="color:var(--red)">&#9660; Declined in Jul-26</strong><br><span style="line-height:1.8">';
+    html+=negativeJul.map(([city,d])=>'<span style="margin-right:8px"><b>'+city+'</b> <span style="color:var(--red)">'+d.momJul+'</span></span>').join('');
+    html+='</span></div>';
+  }
+  html+='</div>';
+  html+='<div class="section-card" style="overflow-x:auto;margin-bottom:14px">';
+  html+='<h3 style="margin-bottom:4px">&#128200; NFV City Growth — Dec 2025 &rarr; Jul 2026</h3>';
+  html+='<div class="section-sub" style="margin-bottom:12px">Source: Tableau &middot; Avg daily orders per city per month &middot; MoM % vs prior month</div>';
+  html+='<table style="min-width:950px"><thead><tr>';
+  html+='<th style="width:150px">City</th><th>Dec-25</th><th>Jan-26</th><th>Feb-26</th><th>Mar-26</th><th>Apr-26</th><th>May-26</th>';
+  html+='<th style="background:#411517">Jun-26</th><th style="background:#E85000">Jul-26 &#9733;</th><th>MoM Jun</th><th>MoM Jul</th></tr></thead><tbody>';
+  growEntries.forEach(([city,d])=>{
+    const cityObj=CITIES.find(c=>c.city===city||c.city.replace(' Al Kubra','')===city.replace(' Al Kubra',''));
+    const isPriority=cityObj?.priority;
+    const julMom=parseFloat(d.momJul)||0;
+    const julColor=julMom>5?'var(--grn)':julMom<-2?'var(--red)':'var(--bur)';
+    html+='<tr><td style="font-weight:700;white-space:nowrap">'+(isPriority?'&#127919; ':'')+city+'</td>';
+    html+='<td style="color:var(--muted)">'+fmtN(d.dec25)+'</td>';
+    html+='<td>'+fmtN(d.jan26)+'<br>'+momChip(d.momJan)+'</td>';
+    html+='<td>'+fmtN(d.feb26)+'<br>'+momChip(d.momFeb)+'</td>';
+    html+='<td>'+fmtN(d.mar26)+'<br>'+momChip(d.momMar)+'</td>';
+    html+='<td>'+fmtN(d.apr26)+'<br>'+momChip(d.momApr)+'</td>';
+    html+='<td>'+fmtN(d.may26)+'<br>'+momChip(d.momMay)+'</td>';
+    html+='<td style="background:#f5f3ff;font-weight:700">'+fmtN(d.jun26)+'<br>'+momChip(d.momJun)+'</td>';
+    html+='<td style="background:#fff7ed;font-weight:800;color:'+julColor+'">'+fmtN(d.jul26)+'<br>'+momChip(d.momJul)+'</td>';
+    html+='<td>'+momChip(d.momJun)+'</td><td>'+momChip(d.momJul)+'</td></tr>';
+  });
+  html+='</tbody></table></div>';
+  document.getElementById('growth-rows').innerHTML=html;
+  const chartCities=growEntries.filter(([,d])=>d.dec25||d.jan26).slice(0,6);
+  const COLORS=['#FF5900','#3b82f6','#22c55e','#8b5cf6','#f59e0b','#ec4899'];
   mkChart('ch-growth','line',{
-    labels:months,
-    datasets:pc.map((c,i)=>{const m=getDaily(c);return{label:c.city,data:[m.jun,m.jul,m.aug,m.sep,m.oct,m.nov,m.dec],borderColor:COLORS[i],backgroundColor:COLORS[i]+'22',tension:.35,pointRadius:4,pointBackgroundColor:COLORS[i]};})
+    labels:['Dec-25','Jan-26','Feb-26','Mar-26','Apr-26','May-26','Jun-26','Jul-26'],
+    datasets:chartCities.map(([city,d],i)=>({
+      label:city,data:[d.dec25||null,d.jan26||null,d.feb26||null,d.mar26||null,d.apr26||null,d.may26||null,d.jun26||null,d.jul26||null],
+      borderColor:COLORS[i%COLORS.length],backgroundColor:COLORS[i%COLORS.length]+'20',
+      tension:.35,pointRadius:4,pointBackgroundColor:COLORS[i%COLORS.length],spanGaps:true
+    }))
   },{plugins:{legend:{position:'top',labels:{font:{size:10}}}},scales:{x:{grid:{color:'#f1f5f9'}},y:{ticks:{callback:v=>v!=null?v.toLocaleString():''},grid:{color:'#f1f5f9'}}}});
 }
 function buildAllCities(){
@@ -688,18 +810,95 @@ function buildAllCities(){
     return '<tr><td>'+(i+1)+'</td><td style="font-weight:700;cursor:pointer;color:var(--org)" onclick="nav(\''+navId+'\')">'+(c.priority?'&#127919; ':'')+c.city+'</td><td style="font-size:10px;color:var(--muted)">'+c.cluster+'</td><td><span class="tag '+(c.priority?'red':'gray')+'">'+(c.priority?'Priority':'Standard')+'</span></td><td>'+fmt(c.ls)+'</td><td><strong>'+fmt(daily)+'</strong></td><td>'+(mom!=null?'<span style="font-weight:700;color:'+(mom>=0?'var(--grn)':'var(--red)')+';">'+(mom>=0?'+':'')+mom+'%</span>':'&mdash;')+'</td><td style="font-weight:700">'+(c.tmart>20?fmt(c.tmart):'<span style="color:var(--muted)">'+c.tmart+'</span>')+'</td><td style="font-weight:700;color:'+(gap!=null?'var(--red)':'var(--muted)')+'">'+( gap!=null?fmt(gap):'&mdash;')+'</td><td>'+c.vendors+'</td><td>'+(c.adt??'&mdash;')+'</td><td><span class="tag '+cls+'">'+statusLabel(s)+'</span></td></tr>';
   }).join('');
 }
-const VERT_META2=[{key:'supermarket',icon:'S',name:'Supermarket',color:'#2563eb'},{key:'pharmacy',icon:'P',name:'Pharmacy',color:'#16a34a'},{key:'dairy',icon:'D',name:'Dairy',color:'#f59e0b'},{key:'nuts',icon:'N',name:'Nuts',color:'#8b5cf6'},{key:'bakery',icon:'B',name:'Bakery',color:'#ef4444'}];
+const CUISINE_ICONS={'grocery':'🛒','supermarket':'🏬','supplements':'💊','specialty_store':'🏪','cosmetics':'💄','fruits':'🍎','bakery & pastry':'🥐','beverages':'🧃','hypermarket':'🏭','pharmacy':'💊','pet shop':'🐾','nuts':'🥜','butchery':'🥩','nuts & dried fruit':'🥜','convenience store':'🏪','dairy':'🥛','Other':'📦'};
 function buildVerticals(){
-  document.getElementById('vert-container').innerHTML=getFiltered().map(c=>{
-    const v=VERTICALS[c.city]||{};
-    const tot=Object.values(v).reduce((s,x)=>s+x,0);
-    let html='<div class="section-card" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div><h3>'+(c.priority?'&#127919; ':'')+c.city+'</h3><div class="section-sub">'+c.cluster+' · '+c.vendors+' vendors</div></div><span class="tag '+(tot>=24?'grn':'org')+'">'+tot+'/24</span></div><div class="vert-grid" style="grid-template-columns:repeat(5,1fr)">';
-    VERT_META2.forEach(vm=>{
-      const cv=v[vm.key]||0,t=V_TARGETS[vm.key],fp=Math.min(100,Math.round(cv/t*100));
-      html+='<div style="text-align:center"><div style="font-size:11px;font-weight:800;color:'+vm.color+';margin-bottom:2px">'+vm.name+'</div><input type="number" min="0" value="'+cv+'" onchange="updateVert(\''+c.city+'\',\''+vm.key+'\',this.value)" style="width:46px;text-align:center;border:1px solid var(--border);border-radius:4px;padding:3px;font-size:12px;font-weight:700;color:'+(cv>=t?'var(--grn)':'var(--red)')+'"/><div style="font-size:8px;color:var(--muted)">/'+t+'</div><div style="height:3px;background:#e5e7eb;border-radius:2px;margin-top:4px;overflow:hidden"><div style="height:100%;background:'+vm.color+';width:'+fp+'%;border-radius:2px"></div></div></div>';
+  if(!CITY_VERT_DATA||Object.keys(CITY_VERT_DATA).length===0){
+    document.getElementById('vert-container').innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)"><em>Loading live inventory data...</em><br><small>Fetching active vendor data from the last 2 months</small></div>';
+    loadInventoryData().then(()=>{if(currentPage==='verticals')buildVerticals();});
+    return;
+  }
+  const cities=getFiltered();
+  let out='';
+  cities.forEach(c=>{
+    const vertData=CITY_VERT_DATA[c.city]||{};
+    const cuisines=Object.entries(vertData).sort((a,b)=>b[1].totalDaily-a[1].totalDaily);
+    const currentTotal=Math.round(cuisines.reduce((s,[,d])=>s+d.totalDaily,0)*10)/10;
+    const activeVendorCount=cuisines.reduce((s,[,d])=>s+d.vendors,0);
+    // Target: tMart if significant, else growth tracker Jul-26 × 20% scaling
+    const hasTMart=c.tmart>100;
+    let target=c.tmart;
+    let targetLabel='tMart benchmark';
+    if(!hasTMart){
+      // Use growth tracker city total × growth factor as proxy for 20% city target
+      const gt=GROWTH_TRACKER_DATA&&(GROWTH_TRACKER_DATA[c.city]||GROWTH_TRACKER_DATA[Object.keys(GROWTH_TRACKER_DATA).find(k=>k.includes(c.city.split(' ')[0]))]);
+      target=gt?.jul26?Math.round(gt.jul26*1.3):Math.round(c.ls*1.5);
+      targetLabel='20% city target (Tableau est.)';
+    }
+    const gap=Math.max(0,target-currentTotal);
+    const pct=Math.min(100,Math.round(currentTotal/target*100));
+    const barColor=pct>=80?'var(--grn)':pct>=40?'var(--org)':'var(--red)';
+    // Per-cuisine gap allocation: each top cuisine gets equal share of gap
+    const topN=Math.min(6,Math.max(1,cuisines.length));
+    const gapPerCuisine=gap/topN;
+    const planRows=cuisines.map(([cuis,d])=>{
+      const vendorsToAdd=d.avgPerVendor>0?Math.max(1,Math.round(gapPerCuisine/d.avgPerVendor)):0;
+      const uplift=Math.round(vendorsToAdd*d.avgPerVendor);
+      return{cuisine:cuis,...d,vendorsToAdd,uplift};
+    }).filter(r=>r.totalDaily>0||r.vendorsToAdd>0);
+    // Missing key verticals (not in current active list)
+    const presentCuisines=new Set(cuisines.map(([c])=>c));
+    const missingKey=KEY_VERTICALS.filter(k=>!presentCuisines.has(k));
+    // Build city card
+    out+='<div class="section-card" style="margin-bottom:14px">';
+    // Header
+    out+='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">';
+    out+='<div><h3 style="font-size:15px">'+(c.priority?'&#127919; ':'')+c.city+'</h3>';
+    out+='<div class="section-sub">'+c.cluster+' &middot; '+activeVendorCount+' active vendors (Jul–Aug 2026) &middot; <span style="color:'+(hasTMart?'var(--blu)':'var(--muted)')+'">'+targetLabel+'</span></div></div>';
+    out+='<div style="text-align:right"><div style="font-size:18px;font-weight:800;color:'+(pct>=80?'var(--grn)':pct>=40?'var(--org)':'var(--red)')+'">'+pct+'%</div><div style="font-size:9px;color:var(--muted)">of target</div></div></div>';
+    // Progress bar
+    out+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">';
+    out+='<div style="flex:1;height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden"><div style="width:'+pct+'%;height:100%;background:'+barColor+';border-radius:4px;transition:width .6s"></div></div>';
+    out+='<div style="font-size:11px;white-space:nowrap"><b style="color:var(--bur)">'+Math.round(currentTotal).toLocaleString()+'</b> <span style="color:var(--muted)">/ '+Math.round(target).toLocaleString()+' /day</span> &nbsp;<span style="color:var(--red);font-weight:700">Gap: '+Math.round(gap).toLocaleString()+'</span></div>';
+    out+='</div>';
+    // Acquisition Plan Box
+    if(gap>0&&planRows.length>0){
+      out+='<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 14px;margin-bottom:12px">';
+      out+='<div style="font-size:10px;font-weight:700;color:var(--org);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">&#128278; Acquisition Plan to close the gap</div>';
+      out+='<div style="display:flex;flex-wrap:wrap;gap:6px">';
+      planRows.slice(0,6).forEach(r=>{
+        const icon=CUISINE_ICONS[r.cuisine]||'📦';
+        out+='<div style="background:#fff;border:1px solid #fed7aa;border-radius:6px;padding:5px 10px;font-size:11px">';
+        out+=icon+' <b>+'+r.vendorsToAdd+'</b> '+r.cuisine;
+        out+='<span style="color:var(--muted);font-size:9px;margin-left:4px">('+r.avgPerVendor+'/day avg &rarr; +'+r.uplift+'/day)</span></div>';
+      });
+      out+='</div>';
+      if(missingKey.length){
+        out+='<div style="margin-top:8px;font-size:10px;color:var(--muted)"><b>Missing key verticals:</b> ';
+        out+=missingKey.map(k=>{const avg=NATL_AVG[k]||10;const n=Math.max(2,Math.round(gapPerCuisine/avg));return'<span style="background:#f3f4f6;padding:2px 6px;border-radius:4px;margin:2px">'+CUISINE_ICONS[k]||'📦'+' +'+n+' '+k+' (natl avg ~'+avg+'/day)</span>';}).join('');
+        out+='</div>';
+      }
+      out+='</div>';
+    }
+    // Detailed table
+    out+='<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Active Vendor Performance by Cuisine</div>';
+    out+='<div style="overflow-x:auto"><table style="font-size:11px"><thead><tr>';
+    out+='<th>Cuisine</th><th style="text-align:right">Active Vendors</th><th style="text-align:right">Avg/Vendor/Day</th><th style="text-align:right">Total/Day</th><th style="text-align:right">Vendors to Add</th><th style="text-align:right">Expected Uplift</th></tr></thead><tbody>';
+    planRows.forEach(r=>{
+      const icon=CUISINE_ICONS[r.cuisine]||'📦';
+      const perfColor=r.avgPerVendor>=20?'var(--grn)':r.avgPerVendor>=10?'var(--org)':'var(--red)';
+      out+='<tr>';
+      out+='<td style="font-weight:600">'+icon+' '+r.cuisine+'</td>';
+      out+='<td style="text-align:right">'+r.vendors+'</td>';
+      out+='<td style="text-align:right;font-weight:700;color:'+perfColor+'">'+r.avgPerVendor+'</td>';
+      out+='<td style="text-align:right;font-weight:700">'+r.totalDaily+'</td>';
+      out+='<td style="text-align:right;color:var(--org);font-weight:700">'+(r.vendorsToAdd>0?'+'+r.vendorsToAdd:'—')+'</td>';
+      out+='<td style="text-align:right;color:var(--grn);font-weight:700">'+(r.uplift>0?'+'+r.uplift+'/day':'—')+'</td>';
+      out+='</tr>';
     });
-    html+='</div></div>';return html;
-  }).join('');
+    out+='</tbody></table></div>';
+    out+='</div>';
+  });
+  document.getElementById('vert-container').innerHTML=out||'<div style="text-align:center;padding:30px;color:var(--muted)">No cities with inventory data found.</div>';
 }
 function updateVert(city,key,val){if(!VERTICALS[city])VERTICALS[city]={};VERTICALS[city][key]=parseInt(val)||0;localStorage.setItem('eg_verticals',JSON.stringify(VERTICALS));}
 let pipeIdCtr=Date.now();
@@ -791,8 +990,8 @@ function doSignIn(){
 async function launchApp(user){
   document.getElementById('login-page').style.display='none';
   const ov=document.getElementById('loading-overlay');ov.style.display='flex';
-  document.getElementById('loading-msg').textContent='Loading city data + leads...';
-  await Promise.all([loadSheetData(),loadLeadsFromSheet()]);
+  document.getElementById('loading-msg').textContent='Loading city data, inventory & growth tracker...';
+  await Promise.all([loadSheetData(),loadLeadsFromSheet(),loadInventoryData(),loadGrowthData()]);
   ov.style.display='none';
   document.getElementById('app').style.display='flex';
   document.getElementById('sb-name').textContent=(user.name||'').split(' ')[0]||'Bassem';

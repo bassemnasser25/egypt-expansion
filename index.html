@@ -829,12 +829,12 @@ function buildCityPage(pageId){
   html+='<div class="section-card"><h3>Vertical Targets &mdash; '+cityName+'</h3>';
   html+='<div class="section-sub">Same targets as Vertical Gap page · Need <b style="color:var(--bur)">+'+cityTotalNeeded+'</b> vendors → <b style="color:var(--grn)">+'+cityTotalUplift+'</b> orders/day</div>';
   html+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:8px">';
-  html+='<thead><tr style="background:#f1f5f9;color:var(--muted);font-weight:700;font-size:10px">';
-  html+='<th style="padding:5px 8px;text-align:left">Category</th>';
-  html+='<th style="padding:5px 8px;text-align:center">Target</th>';
-  html+='<th style="padding:5px 8px;text-align:center">Active</th>';
-  html+='<th style="padding:5px 8px;text-align:center">Gap</th>';
-  html+='<th style="padding:5px 8px;text-align:center">Exp. Uplift</th>';
+  html+='<thead><tr style="background:#ea580c;color:#fff;font-weight:700;font-size:10px">';
+  html+='<th style="padding:6px 8px;text-align:left">Category</th>';
+  html+='<th style="padding:6px 8px;text-align:center">Target</th>';
+  html+='<th style="padding:6px 8px;text-align:center">Active</th>';
+  html+='<th style="padding:6px 8px;text-align:center">Gap</th>';
+  html+='<th style="padding:6px 8px;text-align:center">Exp. Uplift</th>';
   html+='</tr></thead><tbody>';
   cityGapRows.forEach(r=>{
     const met=r.gap===0;
@@ -987,13 +987,13 @@ function buildVerticals(){
     out+='<div style="font-size:10px;font-weight:700;color:var(--org);text-transform:uppercase;letter-spacing:.5px">🎯 Vendor Acquisition Targets</div>';
     out+='<div style="font-size:10px;color:var(--muted)">Need <b style="color:var(--bur)">+'+totalVendorsNeeded+'</b> vendors &rarr; <b style="color:var(--grn)">+'+totalExpectedUplift+'</b> orders/day</div></div>';
     out+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">';
-    out+='<thead><tr style="background:#f1f5f9;color:var(--muted);font-weight:700;font-size:10px">';
-    out+='<th style="padding:5px 8px;text-align:left">Category</th>';
-    out+='<th style="padding:5px 8px;text-align:center">Target</th>';
-    out+='<th style="padding:5px 8px;text-align:center">Active</th>';
-    out+='<th style="padding:5px 8px;text-align:center">Gap</th>';
-    out+='<th style="padding:5px 8px;text-align:center">Avg/day</th>';
-    out+='<th style="padding:5px 8px;text-align:center">Exp. Uplift</th>';
+    out+='<thead><tr style="background:#ea580c;color:#fff;font-weight:700;font-size:10px">';
+    out+='<th style="padding:6px 8px;text-align:left">Category</th>';
+    out+='<th style="padding:6px 8px;text-align:center">Target</th>';
+    out+='<th style="padding:6px 8px;text-align:center">Active</th>';
+    out+='<th style="padding:6px 8px;text-align:center">Gap</th>';
+    out+='<th style="padding:6px 8px;text-align:center">Avg/day</th>';
+    out+='<th style="padding:6px 8px;text-align:center">Exp. Uplift</th>';
     out+='</tr></thead><tbody>';
     vertGapRows.forEach(r=>{
       const met=r.gap===0;

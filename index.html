@@ -265,6 +265,30 @@ tr:hover td{background:#fafafa}
 const SHEET_ID='1aA_v8YjU96NBRo1yiKkJaHX1MLNhmuahOgJd0XaUU5k';
 const LEADS_SHEET='Leads';
 const INVENTORY_SHEET_ID='1CoslHVfWl_scxikyDONeWuPgAHOiqrTNAOp5bVpXr10';
+const STATIC_GROWTH_DATA={
+  'Cairo':{dec25:36349,jan26:38037,feb26:37967,mar26:37850,apr26:41082,may26:42036,jun26:44629,jul26:45931},
+  'Alexandria':{dec25:5195,jan26:5168,feb26:4986,mar26:5189,apr26:5747,may26:5947,jun26:5998,jul26:6050},
+  'Mansoura':{dec25:2810,jan26:2646,feb26:2588,mar26:2818,apr26:2913,may26:3190,jun26:3119,jul26:3159},
+  'Tanta':{dec25:1594,jan26:1578,feb26:1725,mar26:1556,apr26:1339,may26:1415,jun26:1510,jul26:1478},
+  'Suez':{dec25:880,jan26:935,feb26:889,mar26:989,apr26:1190,may26:1248,jun26:1066,jul26:1133},
+  'Zagazig':{dec25:868,jan26:883,feb26:736,mar26:901,apr26:861,may26:925,jun26:1022,jul26:961},
+  'Hurghada':{dec25:659,jan26:691,feb26:702,mar26:682,apr26:804,may26:911,jun26:1014,jul26:1089},
+  'Port Said':{dec25:619,jan26:647,feb26:610,mar26:695,apr26:751,may26:800,jun26:865,jul26:910},
+  'Damietta New':{dec25:527,jan26:347,feb26:285,mar26:353,apr26:408,may26:427,jun26:522,jul26:464},
+  'Al Mahallah Al Kubra':{dec25:484,jan26:474,feb26:565,mar26:520,apr26:511,may26:521,jun26:520,jul26:579},
+  'Banha':{dec25:365,jan26:357,feb26:193,mar26:127,apr26:109,may26:81,jun26:104,jul26:112},
+  'Ismailia':{dec25:271,jan26:277,feb26:251,mar26:273,apr26:288,may26:326,jun26:346,jul26:340},
+  'Minya':{dec25:150,jan26:170,feb26:170,mar26:168,apr26:220,may26:253,jun26:278,jul26:293},
+  'Beni Suef':{dec25:148,jan26:67,feb26:59,mar26:83,apr26:91,may26:98,jun26:128,jul26:105},
+  'Shebeen El Koom':{dec25:106,jan26:130,feb26:115,mar26:174,apr26:99,may26:102,jun26:128,jul26:74},
+  'Damanhour':{dec25:89,jan26:97,feb26:71,mar26:71,apr26:79,may26:85,jun26:92,jul26:111},
+  'Assiut':{dec25:62,jan26:58,feb26:89,mar26:56,apr26:66,may26:75,jun26:100,jul26:83},
+  'Kafr El Sheikh':{dec25:50,jan26:48,feb26:31,mar26:33,apr26:33,may26:40,jun26:51,jul26:64},
+  'Damietta':{dec25:34,jan26:37,feb26:31,mar26:33,apr26:35,may26:37,jun26:44,jul26:34},
+  'Ras El Bar':{dec25:4,jan26:18,feb26:23,mar26:31,apr26:39,may26:60,jun26:85,jul26:139},
+  'Suhag':{dec25:1,jan26:1,feb26:0,mar26:0,apr26:0,may26:0,jun26:3,jul26:2},
+  'North Coast':{dec25:0,jan26:0,feb26:0,mar26:0,apr26:0,may26:0,jun26:11,jul26:272}
+};
 const GROWTH_SHEET_ID='1eg0_2PFqSP_kIg_-LxJ5kOqMwyf2eEtXe4F5xTkzuGQ';
 // National avg daily orders per vendor by cuisine (from Aug 2026 active vendor data)
 const NATL_AVG={grocery:13.3,supermarket:24.6,supplements:11.3,specialty_store:5.0,cosmetics:16.1,fruits:21.3,'bakery & pastry':22.1,beverages:22.2,hypermarket:33.9,pharmacy:11.0,'pet shop':3.3,nuts:14.2,butchery:4.4,'nuts & dried fruit':12.0,'convenience store':8.0};
@@ -478,7 +502,14 @@ async function loadGrowthData(){
     const url=`https://docs.google.com/spreadsheets/d/${GROWTH_SHEET_ID}/gviz/tq?tqx=out:csv&gid=186014201&t=${Date.now()}`;
     const resp=await fetch(url,{credentials:'include',cache:'no-store'});
     const text=await resp.text();
-    if(text.trim().startsWith('<'))throw new Error('Not accessible');
+    if(text.trim().startsWith('<')){
+      const mom=(a,b)=>a>0?+(((b-a)/a*100).toFixed(1)):null;
+      GROWTH_TRACKER_DATA=Object.fromEntries(Object.entries(STATIC_GROWTH_DATA).map(([city,d])=>[city,{...d,
+        momJan:mom(d.dec25,d.jan26),momFeb:mom(d.jan26,d.feb26),momMar:mom(d.feb26,d.mar26),
+        momApr:mom(d.mar26,d.apr26),momMay:mom(d.apr26,d.may26),momJun:mom(d.may26,d.jun26),momJul:mom(d.jun26,d.jul26)
+      }]));
+      console.log('Growth tracker sheet restricted, using Jul-26 snapshot (22 cities)');return;
+    }
     const rows=parseCSVFull(text);
     const parseN=v=>parseFloat((v||'').replace(/,/g,''))||0;
     const result={};
@@ -493,7 +524,14 @@ async function loadGrowthData(){
     });
     GROWTH_TRACKER_DATA=result;
     console.log('Growth tracker loaded:',Object.keys(result).length,'cities');
-  }catch(e){console.warn('Growth data load failed:',e.message);GROWTH_TRACKER_DATA={};}
+  }catch(e){
+    console.warn('Growth data load failed, using static snapshot:',e.message);
+    const mom=(a,b)=>a>0?+(((b-a)/a*100).toFixed(1)):null;
+    GROWTH_TRACKER_DATA=Object.fromEntries(Object.entries(STATIC_GROWTH_DATA).map(([city,d])=>[city,{...d,
+      momJan:mom(d.dec25,d.jan26),momFeb:mom(d.jan26,d.feb26),momMar:mom(d.feb26,d.mar26),
+      momApr:mom(d.mar26,d.apr26),momMay:mom(d.apr26,d.may26),momJun:mom(d.may26,d.jun26),momJul:mom(d.jun26,d.jul26)
+    }]));
+  }
 }
 function setBadge(html){const el=document.getElementById('data-badge');if(el)el.innerHTML=html;}
 const dailyEst=c=>c.periodOrders!=null?Math.round(c.periodOrders/PERIOD_DAYS):null;

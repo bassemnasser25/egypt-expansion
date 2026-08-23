@@ -266,7 +266,6 @@ const SHEET_ID='1aA_v8YjU96NBRo1yiKkJaHX1MLNhmuahOgJd0XaUU5k';
 const LEADS_SHEET='Leads';
 const INVENTORY_SHEET_ID='1CoslHVfWl_scxikyDONeWuPgAHOiqrTNAOp5bVpXr10';
 const STATIC_GROWTH_DATA={
-  'Cairo':{dec25:36349,jan26:38037,feb26:37967,mar26:37850,apr26:41082,may26:42036,jun26:44629,jul26:45931},
   'Alexandria':{dec25:5195,jan26:5168,feb26:4986,mar26:5189,apr26:5747,may26:5947,jun26:5998,jul26:6050},
   'Mansoura':{dec25:2810,jan26:2646,feb26:2588,mar26:2818,apr26:2913,may26:3190,jun26:3119,jul26:3159},
   'Tanta':{dec25:1594,jan26:1578,feb26:1725,mar26:1556,apr26:1339,may26:1415,jun26:1510,jul26:1478},
@@ -289,6 +288,31 @@ const STATIC_GROWTH_DATA={
   'Suhag':{dec25:1,jan26:1,feb26:0,mar26:0,apr26:0,may26:0,jun26:3,jul26:2},
   'North Coast':{dec25:0,jan26:0,feb26:0,mar26:0,apr26:0,may26:0,jun26:11,jul26:272}
 };
+// Static city+vertical inventory snapshot — Jul/Aug 2026 active vendors (from EG_LocalShops inventory sheet)
+// Used as fallback when INVENTORY_SHEET_ID is not accessible cross-origin
+const STATIC_CITY_VERT_DATA={
+  'Cairo':{'coffee & tea':{vendors:5,totalDaily:19.6,avgPerVendor:3.9},'nuts':{vendors:9,totalDaily:128.1,avgPerVendor:14.2},'grocery':{vendors:58,totalDaily:772.7,avgPerVendor:13.3},'hypermarket':{vendors:22,totalDaily:745.4,avgPerVendor:33.9},'specialty_store':{vendors:103,totalDaily:515.2,avgPerVendor:5},'supplements':{vendors:169,totalDaily:1910.1,avgPerVendor:11.3},'cosmetics':{vendors:26,totalDaily:419,avgPerVendor:16.1},'supermarket':{vendors:26,totalDaily:638.8,avgPerVendor:24.6},'electronics':{vendors:8,totalDaily:31.5,avgPerVendor:3.9},'bakery & pastry':{vendors:4,totalDaily:88.6,avgPerVendor:22.1},'beverages':{vendors:24,totalDaily:532.4,avgPerVendor:22.2},'butchery':{vendors:5,totalDaily:22.1,avgPerVendor:4.4},'fruits':{vendors:7,totalDaily:149.2,avgPerVendor:21.3},'pet shop':{vendors:44,totalDaily:143.9,avgPerVendor:3.3},'fish & seafood':{vendors:3,totalDaily:4.7,avgPerVendor:1.6},'desserts':{vendors:7,totalDaily:28.1,avgPerVendor:4},'convenience store':{vendors:2,totalDaily:52.7,avgPerVendor:26.3},'nuts & snacks':{vendors:16,totalDaily:97.9,avgPerVendor:6.1},'nuts & dried fruit':{vendors:1,totalDaily:1.2,avgPerVendor:1.2},'pharmacy':{vendors:3,totalDaily:23.2,avgPerVendor:7.7},'accessories':{vendors:6,totalDaily:10.9,avgPerVendor:1.8},'charity':{vendors:1,totalDaily:20.4,avgPerVendor:20.4},'fruits and vegetables':{vendors:2,totalDaily:12,avgPerVendor:6},'fruits & vegetables':{vendors:1,totalDaily:5.5,avgPerVendor:5.5}},
+  'Alexandria':{'specialty_store':{vendors:24,totalDaily:114.6,avgPerVendor:4.8},'cosmetics':{vendors:5,totalDaily:24.4,avgPerVendor:4.9},'supplements':{vendors:19,totalDaily:160.9,avgPerVendor:8.5},'desserts':{vendors:6,totalDaily:20.5,avgPerVendor:3.4},'supermarket':{vendors:3,totalDaily:48.6,avgPerVendor:16.2},'fruits':{vendors:2,totalDaily:24.4,avgPerVendor:12.2},'beverages':{vendors:1,totalDaily:14.6,avgPerVendor:14.6},'electronics':{vendors:1,totalDaily:2.1,avgPerVendor:2.1},'pet shop':{vendors:2,totalDaily:11.8,avgPerVendor:5.9},'bakery & pastry':{vendors:3,totalDaily:53.5,avgPerVendor:17.8},'coffee & tea':{vendors:3,totalDaily:28.3,avgPerVendor:9.4},'nuts & snacks':{vendors:7,totalDaily:44.7,avgPerVendor:6.4},'accessories':{vendors:1,totalDaily:1.9,avgPerVendor:1.9},'grocery':{vendors:4,totalDaily:11.2,avgPerVendor:2.8}},
+  'North Coast':{'hypermarket':{vendors:3,totalDaily:23,avgPerVendor:7.7},'supermarket':{vendors:2,totalDaily:7.6,avgPerVendor:3.8},'specialty_store':{vendors:1,totalDaily:2.6,avgPerVendor:2.6},'grocery':{vendors:1,totalDaily:16.7,avgPerVendor:16.7}},
+  'Damietta':{'grocery':{vendors:1,totalDaily:0.3,avgPerVendor:0.3},'supplements':{vendors:1,totalDaily:0.7,avgPerVendor:0.7}},
+  'Hurghada':{'beverages':{vendors:4,totalDaily:55.3,avgPerVendor:13.8},'supplements':{vendors:8,totalDaily:37.6,avgPerVendor:4.7},'cosmetics':{vendors:1,totalDaily:4.5,avgPerVendor:4.5},'fruits':{vendors:1,totalDaily:4.3,avgPerVendor:4.3},'nuts & snacks':{vendors:2,totalDaily:7,avgPerVendor:3.5},'specialty_store':{vendors:3,totalDaily:12.1,avgPerVendor:4},'desserts':{vendors:1,totalDaily:2.6,avgPerVendor:2.6},'pet shop':{vendors:1,totalDaily:2.9,avgPerVendor:2.9},'flowers':{vendors:1,totalDaily:1.6,avgPerVendor:1.6},'grocery':{vendors:3,totalDaily:29.6,avgPerVendor:9.9},'nuts & dried fruit':{vendors:1,totalDaily:1,avgPerVendor:1},'pharmacy':{vendors:1,totalDaily:8.5,avgPerVendor:8.5}},
+  'Suez':{'butchery':{vendors:1,totalDaily:4.6,avgPerVendor:4.6},'supermarket':{vendors:1,totalDaily:115.1,avgPerVendor:115.1},'specialty_store':{vendors:4,totalDaily:62.8,avgPerVendor:15.7},'nuts & snacks':{vendors:2,totalDaily:10.6,avgPerVendor:5.3},'supplements':{vendors:3,totalDaily:25.3,avgPerVendor:8.4},'chocolate':{vendors:1,totalDaily:2.1,avgPerVendor:2.1}},
+  'Minya':{'supplements':{vendors:2,totalDaily:9.9,avgPerVendor:5},'specialty_store':{vendors:3,totalDaily:4.7,avgPerVendor:1.6},'electronics':{vendors:1,totalDaily:1.3,avgPerVendor:1.3}},
+  'Mansoura':{'specialty_store':{vendors:5,totalDaily:18.8,avgPerVendor:3.8},'supplements':{vendors:6,totalDaily:19.4,avgPerVendor:3.2},'supermarket':{vendors:1,totalDaily:9.1,avgPerVendor:9.1},'pet shop':{vendors:2,totalDaily:4.1,avgPerVendor:2.1},'desserts':{vendors:1,totalDaily:17.2,avgPerVendor:17.2},'nuts & snacks':{vendors:2,totalDaily:9.6,avgPerVendor:4.8},'grocery':{vendors:4,totalDaily:106.9,avgPerVendor:26.7},'cosmetics':{vendors:1,totalDaily:1.9,avgPerVendor:1.9},'accessories':{vendors:1,totalDaily:1.2,avgPerVendor:1.2},'electronics':{vendors:1,totalDaily:1.3,avgPerVendor:1.3},'coffee & tea':{vendors:1,totalDaily:2,avgPerVendor:2}},
+  'Kafr El Sheikh':{'supplements':{vendors:1,totalDaily:6.9,avgPerVendor:6.9},'grocery':{vendors:1,totalDaily:5.6,avgPerVendor:5.6}},
+  'Tanta':{'specialty_store':{vendors:2,totalDaily:6.1,avgPerVendor:3.1},'supermarket':{vendors:1,totalDaily:4.9,avgPerVendor:4.9},'coffee & tea':{vendors:2,totalDaily:11.9,avgPerVendor:5.9},'supplements':{vendors:4,totalDaily:26.9,avgPerVendor:6.7},'grocery':{vendors:1,totalDaily:0.9,avgPerVendor:0.9},'electronics':{vendors:1,totalDaily:2.8,avgPerVendor:2.8},'beverages':{vendors:1,totalDaily:1.7,avgPerVendor:1.7}},
+  'Ismailia':{'supplements':{vendors:3,totalDaily:53.3,avgPerVendor:17.8},'specialty_store':{vendors:4,totalDaily:14.3,avgPerVendor:3.6},'nuts & dried fruit':{vendors:1,totalDaily:3.2,avgPerVendor:3.2},'cosmetics':{vendors:1,totalDaily:0.9,avgPerVendor:0.9},'nuts & snacks':{vendors:1,totalDaily:1.5,avgPerVendor:1.5},'grocery':{vendors:2,totalDaily:2.2,avgPerVendor:1.1},'pet shop':{vendors:1,totalDaily:1,avgPerVendor:1}},
+  'Zagazig':{'specialty_store':{vendors:4,totalDaily:5.2,avgPerVendor:1.3},'supermarket':{vendors:1,totalDaily:9.1,avgPerVendor:9.1},'nuts & snacks':{vendors:2,totalDaily:5.1,avgPerVendor:2.5},'supplements':{vendors:3,totalDaily:26.2,avgPerVendor:8.7},'grocery':{vendors:2,totalDaily:6.8,avgPerVendor:3.4},'bakery & pastry':{vendors:1,totalDaily:1.9,avgPerVendor:1.9}},
+  'Damietta New':{'supermarket':{vendors:1,totalDaily:3,avgPerVendor:3},'grocery':{vendors:1,totalDaily:9.5,avgPerVendor:9.5},'specialty_store':{vendors:1,totalDaily:2.3,avgPerVendor:2.3}},
+  'Shebeen El Koom':{'supplements':{vendors:2,totalDaily:6.4,avgPerVendor:3.2},'grocery':{vendors:1,totalDaily:2.7,avgPerVendor:2.7},'coffee & tea':{vendors:1,totalDaily:1,avgPerVendor:1}},
+  'Al Mahallah Al Kubra':{'coffee & tea':{vendors:3,totalDaily:6.6,avgPerVendor:2.2},'specialty_store':{vendors:1,totalDaily:13.4,avgPerVendor:13.4},'grocery':{vendors:3,totalDaily:37.2,avgPerVendor:12.4},'supplements':{vendors:2,totalDaily:10.9,avgPerVendor:5.4},'pet shop':{vendors:1,totalDaily:1.6,avgPerVendor:1.6}},
+  'Port Said':{'nuts & snacks':{vendors:1,totalDaily:8.2,avgPerVendor:8.2},'convenience store':{vendors:1,totalDaily:4.2,avgPerVendor:4.2},'hypermarket':{vendors:1,totalDaily:25.4,avgPerVendor:25.4},'grocery':{vendors:2,totalDaily:14.2,avgPerVendor:7.1},'specialty_store':{vendors:2,totalDaily:4.2,avgPerVendor:2.1}},
+  'Assiut':{'supplements':{vendors:2,totalDaily:14.3,avgPerVendor:7.2}},
+  'Banha':{'specialty_store':{vendors:2,totalDaily:2.2,avgPerVendor:1.1},'grocery':{vendors:1,totalDaily:2.9,avgPerVendor:2.9}},
+  'Suhag':{'supplements':{vendors:2,totalDaily:2.4,avgPerVendor:1.2}},
+  'Ras El Bar':{'supplements':{vendors:4,totalDaily:32,avgPerVendor:8},'grocery':{vendors:2,totalDaily:1.5,avgPerVendor:0.8}},
+  'Beni Suef':{'supermarket':{vendors:1,totalDaily:23.1,avgPerVendor:23.1}}
+};
 const GROWTH_SHEET_ID='1eg0_2PFqSP_kIg_-LxJ5kOqMwyf2eEtXe4F5xTkzuGQ';
 // National avg daily orders per vendor by cuisine (from Aug 2026 active vendor data)
 const NATL_AVG={grocery:13.3,supermarket:24.6,supplements:11.3,specialty_store:5.0,cosmetics:16.1,fruits:21.3,'bakery & pastry':22.1,beverages:22.2,hypermarket:33.9,pharmacy:11.0,'pet shop':3.3,nuts:14.2,butchery:4.4,'nuts & dried fruit':12.0,'convenience store':8.0};
@@ -302,26 +326,28 @@ const _today=new Date();
 const _todayStr=_today.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
 const G_CLIENT_ID='413433808471-et5blasllskil7oksrgqi3tcdjdiib82.apps.googleusercontent.com';
 let G_ACCESS_TOKEN=null; // stored after OAuth sign-in with spreadsheets.readonly scope
+// DEFAULT_CITIES — Jul-26 snapshot (ADO from EG_NFV_City_MoM_Analysis, vendors from NFV Active Vendors & Chains)
 const DEFAULT_CITIES=[
-  {city:'Ismailia',cluster:'Canal',priority:true,owner:'Bassem',ls:325,tmart:1804,vendors:21,periodOrders:949,adt:21.6,focus:'Supermarket+Pharmacy'},
-  {city:'Port Said',cluster:'Canal',priority:true,owner:'Bassem',ls:919,tmart:1760,vendors:29,periodOrders:2900,adt:23.8,focus:'Pharmacy+Nuts'},
-  {city:'Damietta New',cluster:'Canal',priority:true,owner:'Bassem',ls:557,tmart:1001,vendors:10,periodOrders:791,adt:19.9,focus:'Supermarket+Bakery'},
-  {city:'Assiut',cluster:'Upper Egypt',priority:true,owner:'Bassem',ls:106,tmart:1003,vendors:12,periodOrders:591,adt:26.5,focus:'Supermarket+Pharmacy'},
-  {city:'Minya',cluster:'Upper Egypt',priority:true,owner:'Bassem',ls:271,tmart:5,vendors:11,periodOrders:222,adt:40.4,focus:'Grocery+Dairy'},
-  {city:'Mansoura',cluster:'Delta',priority:false,owner:'Bassem',ls:3216,tmart:3413,vendors:141,periodOrders:14483,adt:20.9,focus:'Pet Shop+Bakery'},
-  {city:'Tanta',cluster:'Delta',priority:false,owner:'Bassem',ls:1568,tmart:2179,vendors:58,periodOrders:5833,adt:19.0,focus:'Pharmacy+Grocery'},
-  {city:'Suez',cluster:'Canal',priority:false,owner:'Bassem',ls:1086,tmart:887,vendors:28,periodOrders:1780,adt:30.1,focus:'Grocery+Dairy'},
-  {city:'Zagazig',cluster:'Delta',priority:false,owner:'Khaled',ls:993,tmart:2121,vendors:28,periodOrders:2726,adt:19.7,focus:'Grocery+Pharmacy'},
-  {city:'Hurghada',cluster:'Red Sea',priority:false,owner:'Khaled',ls:996,tmart:1148,vendors:54,periodOrders:1918,adt:29.9,focus:'Pharmacy+Grocery'},
-  {city:'Al Mahallah',cluster:'Delta',priority:false,owner:'Khaled',ls:506,tmart:6,vendors:23,periodOrders:1904,adt:19.7,focus:'Grocery+Pharmacy'},
-  {city:'Talkha',cluster:'Delta',priority:false,owner:'Bassem',ls:217,tmart:251,vendors:29,periodOrders:null,adt:null,focus:'Bakery+Grocery'},
-  {city:'Shebeen El Koom',cluster:'Delta',priority:false,owner:'Bassem',ls:118,tmart:2,vendors:5,periodOrders:201,adt:32.0,focus:'Grocery+Dairy'},
-  {city:'Beni Suef',cluster:'Upper Egypt',priority:false,owner:'Bassem',ls:129,tmart:5,vendors:2,periodOrders:null,adt:null,focus:'Grocery+Pharmacy'},
-  {city:'Banha',cluster:'Delta',priority:false,owner:'Bassem',ls:96,tmart:3,vendors:6,periodOrders:2195,adt:20.2,focus:'Grocery+Pharmacy'},
-  {city:'Ras El Bar',cluster:'Canal',priority:false,owner:'Bassem',ls:71,tmart:2,vendors:3,periodOrders:null,adt:null,focus:'Grocery+Nuts'},
-  {city:'Kafr El Sheikh',cluster:'Delta',priority:false,owner:'Khaled',ls:51,tmart:3,vendors:4,periodOrders:119,adt:25.8,focus:'Grocery+Pharmacy'},
-  {city:'Damietta',cluster:'Canal',priority:false,owner:'Bassem',ls:44,tmart:6,vendors:4,periodOrders:152,adt:27.2,focus:'Bakery+Grocery'},
-  {city:'Suhag',cluster:'Upper Egypt',priority:false,owner:'Bassem',ls:3,tmart:0,vendors:2,periodOrders:null,adt:null,focus:'Grocery+Dairy'},
+  {city:'Ismailia',cluster:'Canal',priority:true,owner:'Bassem',ls:340,tmart:1804,vendors:63,periodOrders:null,adt:21.6,focus:'Supplements+Specialty'},
+  {city:'Port Said',cluster:'Canal',priority:true,owner:'Bassem',ls:910,tmart:1760,vendors:57,periodOrders:null,adt:23.8,focus:'Hypermarket+Grocery'},
+  {city:'Damietta New',cluster:'Canal',priority:true,owner:'Bassem',ls:464,tmart:1001,vendors:47,periodOrders:null,adt:19.9,focus:'Supermarket+Grocery'},
+  {city:'Assiut',cluster:'Upper Egypt',priority:true,owner:'Bassem',ls:83,tmart:1003,vendors:46,periodOrders:null,adt:26.5,focus:'Supplements+Specialty'},
+  {city:'Minya',cluster:'Upper Egypt',priority:true,owner:'Bassem',ls:293,tmart:5,vendors:40,periodOrders:null,adt:40.4,focus:'Supplements+Specialty'},
+  {city:'Mansoura',cluster:'Delta',priority:false,owner:'Bassem',ls:3159,tmart:3413,vendors:173,periodOrders:null,adt:20.9,focus:'Grocery+Supermarket'},
+  {city:'Tanta',cluster:'Delta',priority:false,owner:'Bassem',ls:1478,tmart:2179,vendors:94,periodOrders:null,adt:19.0,focus:'Supplements+Coffee'},
+  {city:'Suez',cluster:'Canal',priority:false,owner:'Bassem',ls:1133,tmart:887,vendors:67,periodOrders:null,adt:30.1,focus:'Supermarket+Specialty'},
+  {city:'Zagazig',cluster:'Delta',priority:false,owner:'Khaled',ls:961,tmart:2121,vendors:79,periodOrders:null,adt:19.7,focus:'Supplements+Specialty'},
+  {city:'Hurghada',cluster:'Red Sea',priority:false,owner:'Khaled',ls:1089,tmart:1148,vendors:93,periodOrders:null,adt:29.9,focus:'Beverages+Grocery'},
+  {city:'Al Mahallah Al Kubra',cluster:'Delta',priority:false,owner:'Khaled',ls:579,tmart:6,vendors:63,periodOrders:null,adt:19.7,focus:'Grocery+Specialty'},
+  {city:'Shebeen El Koom',cluster:'Delta',priority:false,owner:'Bassem',ls:74,tmart:2,vendors:35,periodOrders:null,adt:32.0,focus:'Supplements+Grocery'},
+  {city:'Beni Suef',cluster:'Upper Egypt',priority:false,owner:'Bassem',ls:105,tmart:5,vendors:41,periodOrders:null,adt:null,focus:'Supermarket+Grocery'},
+  {city:'Banha',cluster:'Delta',priority:false,owner:'Bassem',ls:112,tmart:3,vendors:43,periodOrders:null,adt:20.2,focus:'Specialty+Grocery'},
+  {city:'Ras El Bar',cluster:'Canal',priority:false,owner:'Bassem',ls:139,tmart:2,vendors:27,periodOrders:null,adt:null,focus:'Supplements+Grocery'},
+  {city:'Kafr El Sheikh',cluster:'Delta',priority:false,owner:'Khaled',ls:64,tmart:3,vendors:32,periodOrders:null,adt:25.8,focus:'Supplements+Grocery'},
+  {city:'Damietta',cluster:'Canal',priority:false,owner:'Bassem',ls:34,tmart:6,vendors:39,periodOrders:null,adt:27.2,focus:'Grocery+Supplements'},
+  {city:'Damanhour',cluster:'Delta',priority:false,owner:'Bassem',ls:111,tmart:4,vendors:40,periodOrders:null,adt:null,focus:'Grocery+Specialty'},
+  {city:'North Coast',cluster:'Red Sea',priority:false,owner:'Khaled',ls:272,tmart:3,vendors:37,periodOrders:null,adt:null,focus:'Hypermarket+Grocery'},
+  {city:'Suhag',cluster:'Upper Egypt',priority:false,owner:'Bassem',ls:2,tmart:0,vendors:18,periodOrders:null,adt:null,focus:'Supplements+Grocery'},
 ];
 let CITIES=[],DATA_SOURCE='loading',DATA_DATE=_todayStr;
 let LEADS_FROM_SHEET=[];
@@ -462,7 +488,10 @@ async function loadInventoryData(){
     const url=`https://docs.google.com/spreadsheets/d/${INVENTORY_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1&t=${Date.now()}`;
     const resp=await fetch(url,{credentials:'include',cache:'no-store'});
     const text=await resp.text();
-    if(text.trim().startsWith('<'))throw new Error('Not accessible');
+    if(text.trim().startsWith('<')){
+      CITY_VERT_DATA=STATIC_CITY_VERT_DATA;
+      console.log('Inventory sheet restricted, using Jul/Aug 2026 static snapshot');return;
+    }
     const rows=parseCSVFull(text);
     const data=rows.slice(1).filter(r=>r[9]);
     // Cols: 0=chain_id,1=chain_name,2=vendor_id,3=vendor_name,4=sf_id,5=first_online
@@ -495,7 +524,10 @@ async function loadInventoryData(){
     delete cd['Cairo_inactive'];delete cd['OLD NC'];
     CITY_VERT_DATA=cd;
     console.log('Inventory loaded:',Object.keys(cd).length,'cities,',activeVendors.size,'active vendors');
-  }catch(e){console.warn('Inventory load failed:',e.message);CITY_VERT_DATA={};}
+  }catch(e){
+    console.warn('Inventory load failed, using static snapshot:',e.message);
+    CITY_VERT_DATA=STATIC_CITY_VERT_DATA;
+  }
 }
 async function loadGrowthData(){
   try{
@@ -522,6 +554,7 @@ async function loadGrowthData(){
         momMay:r[13]||'',momJun:r[14]||'',momJul:r[15]||''
       };
     });
+    delete result['Cairo']; // Cairo excluded from growth tracker view
     GROWTH_TRACKER_DATA=result;
     console.log('Growth tracker loaded:',Object.keys(result).length,'cities');
   }catch(e){
@@ -794,7 +827,7 @@ function buildGrowth(){
     return'<span class="chip flat" style="font-size:9px">'+val+'</span>';
   }
   const fmtN=v=>v?Math.round(v).toLocaleString():'&mdash;';
-  const growEntries=Object.entries(GROWTH_TRACKER_DATA).sort(([,a],[,b])=>b.jul26-a.jul26);
+  const growEntries=Object.entries(GROWTH_TRACKER_DATA).filter(([city])=>city!=='Cairo').sort(([,a],[,b])=>b.jul26-a.jul26);
   const positiveJul=growEntries.filter(([,d])=>d.momJul&&parseFloat(d.momJul)>0);
   const negativeJul=growEntries.filter(([,d])=>d.momJul&&parseFloat(d.momJul)<-2);
   let html='';

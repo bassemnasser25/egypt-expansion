@@ -182,7 +182,7 @@ tr:hover td{background:#fafafa}
           <div class="section-sub">Sorted by daily LS orders &middot; NFV (Local Shops) only</div>
           <div class="tbl-wrap">
             <table>
-              <thead><tr><th>#</th><th>City</th><th>Cluster</th><th>Daily Jun</th><th>Period Ord.</th><th>Daily Aug est.</th><th style="color:var(--lim)">vs Daily tMart</th><th>Gap/Day</th><th>Vendors</th><th>ADT</th><th>Status</th></tr></thead>
+              <thead><tr><th>#</th><th>City</th><th>Cluster</th><th>Daily Jun</th><th>Period Ord.</th><th>Daily Baseline</th><th style="color:var(--lim)">vs Daily tMart</th><th>Gap/Day</th><th>Vendors</th><th>ADT</th><th>Status</th></tr></thead>
               <tbody id="all-tbody"></tbody>
             </table>
           </div>
@@ -206,7 +206,7 @@ tr:hover td{background:#fafafa}
           <h3>All 19 Cities &mdash; Performance Table (Daily Orders)</h3>
           <div class="tbl-wrap">
             <table>
-              <thead><tr><th>#</th><th>City</th><th>Cluster</th><th>Priority</th><th>Daily Jun</th><th>Daily Aug</th><th>MoM</th><th>Daily tMart</th><th>Gap/Day</th><th>Vendors</th><th>ADT</th><th>Status</th></tr></thead>
+              <thead><tr><th>#</th><th>City</th><th>Cluster</th><th>Priority</th><th>Daily Jun</th><th>Daily Baseline</th><th>MoM</th><th>Daily tMart</th><th>Gap/Day</th><th>Vendors</th><th>ADT</th><th>Status</th></tr></thead>
               <tbody id="full-tbody"></tbody>
             </table>
           </div>
@@ -265,7 +265,7 @@ tr:hover td{background:#fafafa}
 const SHEET_ID='1aA_v8YjU96NBRo1yiKkJaHX1MLNhmuahOgJd0XaUU5k';
 const LEADS_SHEET='Leads';
 const INVENTORY_SHEET_ID='1CoslHVfWl_scxikyDONeWuPgAHOiqrTNAOp5bVpXr10';
-const GROWTH_SHEET_ID='1i1JEGgtFE6wDAoEHNAgfcePkoQEynmfaGX0bVt67H4k';
+const GROWTH_SHEET_ID='1eg0_2PFqSP_kIg_-LxJ5kOqMwyf2eEtXe4F5xTkzuGQ';
 // National avg daily orders per vendor by cuisine (from Aug 2026 active vendor data)
 const NATL_AVG={grocery:13.3,supermarket:24.6,supplements:11.3,specialty_store:5.0,cosmetics:16.1,fruits:21.3,'bakery & pastry':22.1,beverages:22.2,hypermarket:33.9,pharmacy:11.0,'pet shop':3.3,nuts:14.2,butchery:4.4,'nuts & dried fruit':12.0,'convenience store':8.0};
 // Key verticals every city should aim for
@@ -475,7 +475,7 @@ async function loadInventoryData(){
 }
 async function loadGrowthData(){
   try{
-    const url=`https://docs.google.com/spreadsheets/d/${GROWTH_SHEET_ID}/gviz/tq?tqx=out:csv&gid=0&t=${Date.now()}`;
+    const url=`https://docs.google.com/spreadsheets/d/${GROWTH_SHEET_ID}/gviz/tq?tqx=out:csv&gid=186014201&t=${Date.now()}`;
     const resp=await fetch(url,{credentials:'include',cache:'no-store'});
     const text=await resp.text();
     if(text.trim().startsWith('<'))throw new Error('Not accessible');
@@ -497,7 +497,8 @@ async function loadGrowthData(){
 }
 function setBadge(html){const el=document.getElementById('data-badge');if(el)el.innerHTML=html;}
 const dailyEst=c=>c.periodOrders!=null?Math.round(c.periodOrders/PERIOD_DAYS):null;
-const dailyLS=c=>dailyEst(c)??c.ls;
+// Prefer the sheet's pre-computed daily baseline (Jun_Daily_Baseline) over dividing period orders
+const dailyLS=c=>c.ls>0?c.ls:(dailyEst(c)??0);
 const avgDailyPerVendor=c=>Math.round(dailyLS(c)/Math.max(1,c.vendors));
 const hasSignificantTmart=c=>c.tmart>20;
 const achievement=c=>hasSignificantTmart(c)?Math.min(200,Math.round(dailyLS(c)/c.tmart*100)):null;
@@ -618,7 +619,7 @@ function buildOverview(){
   const pipeCount=pipeline.reduce((s,p)=>s+(p.count||1),0)+LEADS_FROM_SHEET.length;
   const expDaily=CITIES.filter(c=>c.priority).reduce((s,c)=>s+cityExpectedDaily(c.city),0);
   document.getElementById('overview-kpis').innerHTML=
-    '<div class="kpi-card"><div class="kpi-label">Total Daily LS</div><div class="kpi-val org">'+fmt(totDailyLS)+'</div><div class="kpi-sub">'+filtered.length+' cities · Aug est.</div></div>'+
+    '<div class="kpi-card"><div class="kpi-label">Total Daily LS</div><div class="kpi-val org">'+fmt(totDailyLS)+'</div><div class="kpi-sub">'+filtered.length+' cities · live baseline</div></div>'+
     '<div class="kpi-card"><div class="kpi-label">Priority Cities</div><div class="kpi-val">'+pcards.length+'</div><div class="kpi-sub">Canal + Upper Egypt</div></div>'+
     '<div class="kpi-card"><div class="kpi-label">Active Vendors</div><div class="kpi-val org">'+totVend+'</div><div class="kpi-sub">Local Shops total</div></div>'+
     '<div class="kpi-card"><div class="kpi-label">Pipeline + Leads</div><div class="kpi-val">'+pipeCount+'</div><div class="kpi-sub">expected +'+fmt(expDaily)+' daily</div></div>'+
@@ -635,7 +636,7 @@ function buildOverview(){
     let html='<div class="city-card '+s+'" onclick="nav(\''+navId+'\')" style="cursor:pointer">';
     html+='<div class="cc-head"><div><div class="cc-name">'+c.city+'</div><div class="cc-cluster">'+c.cluster+' · '+c.owner+'</div></div>';
     html+='<span class="tag '+sCl+'">'+statusLabel(s)+'</span></div>';
-    html+='<div class="cc-metrics"><div><div class="cc-m-label">LS Daily</div><div class="cc-m-val" style="color:'+mColor+'">'+fmt(daily)+'</div><div style="font-size:9px;color:var(--muted)">'+(dailyEst(c)!=null?PERIOD_DAYS+'-day avg':'Jun base')+'</div></div>';
+    html+='<div class="cc-metrics"><div><div class="cc-m-label">LS Daily</div><div class="cc-m-val" style="color:'+mColor+'">'+fmt(daily)+'</div><div style="font-size:9px;color:var(--muted)">'+(c.lastUpdated?'as of '+c.lastUpdated:'baseline')+'</div></div>';
     html+='<div><div class="cc-m-label">tMart Daily</div><div class="cc-m-val" style="color:'+(openMkt?'var(--muted)':'var(--bur)')+'">'+fmt(c.tmart)+'</div><div style="font-size:9px;color:var(--muted)">'+(openMkt?'minimal':'benchmark')+'</div></div>';
     html+='<div><div class="cc-m-label">'+(openMkt?'ADT':'Gap/Day')+'</div><div class="cc-m-val" style="color:'+(openMkt?(c.adt>35?'var(--red)':'var(--muted)'):'var(--red)')+'">'+((openMkt&&c.adt)?c.adt+'m':fmt(c.tmart-daily))+'</div><div style="font-size:9px;color:var(--muted)">'+(openMkt?'delivery time':'orders/day')+'</div></div></div>';
     if(pct!=null){
@@ -689,7 +690,7 @@ function buildCityPage(pageId){
   html+='</div>';
   const adtColor=c.adt>35?'var(--red)':c.adt>25?'var(--org)':'var(--grn)';
   html+='<div class="city-kpi-row">';
-  html+='<div class="kpi-card"><div class="kpi-label">Daily LS (Aug)</div><div class="kpi-val org">'+fmt(daily)+'</div><div class="kpi-sub">'+(dailyEst(c)!=null?PERIOD_DAYS+'-day avg':'Jun base')+'</div></div>';
+  html+='<div class="kpi-card"><div class="kpi-label">Daily LS Orders</div><div class="kpi-val org">'+fmt(daily)+'</div><div class="kpi-sub">'+(c.lastUpdated?'as of '+c.lastUpdated:'baseline')+'</div></div>';
   html+='<div class="kpi-card"><div class="kpi-label">Daily tMart</div><div class="kpi-val">'+(openMkt?c.tmart:fmt(c.tmart))+'</div><div class="kpi-sub">'+(openMkt?'minimal competition':'benchmark')+'</div></div>';
   html+='<div class="kpi-card"><div class="kpi-label">Gap / Day</div><div class="kpi-val '+(gap>0&&!openMkt?'red':'')+'">'+(openMkt?'&mdash;':fmt(gap))+'</div><div class="kpi-sub">orders to close</div></div>';
   html+='<div class="kpi-card"><div class="kpi-label">Achievement</div><div class="kpi-val '+(ach!=null?(ach<25?'red':ach>=90?'grn':'org'):'blu')+'">'+(ach!=null?ach+'%':'N/A')+'</div><div class="kpi-sub">of tMart</div></div>';

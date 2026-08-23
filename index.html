@@ -375,6 +375,32 @@ let CITIES=[],DATA_SOURCE='loading',DATA_DATE=_todayStr;
 let LEADS_FROM_SHEET=[];
 let CITY_VERT_DATA=null; // {city:{cuisine:{vendors,totalDaily,avgPerVendor}}}
 let GROWTH_TRACKER_DATA=null; // {city:{dec25..jul26,momJan..momJul}}
+let VENDOR_GROWTH_DATA=null;  // {city:{v:[dec25..jul26],c:[dec25..jul26]}}
+// Static vendor/chain monthly data (Dec-25 → Jul-26) from NFV Active Vendors & Chains sheet
+const STATIC_VENDOR_GROWTH_DATA={
+  'Cairo':{v:[1622,1694,1694,1714,1764,1814,1888,1949],c:[655,691,698,703,722,755,778,835]},
+  'Alexandria':{v:[305,311,319,308,327,316,389,369],c:[190,191,200,196,201,208,221,226]},
+  'Mansoura':{v:[140,138,137,133,144,137,180,173],c:[127,125,123,120,124,124,127,134]},
+  'Tanta':{v:[75,78,78,78,80,69,113,94],c:[66,70,69,69,66,65,72,72]},
+  'Suez':{v:[41,37,37,41,48,45,87,67],c:[38,35,34,40,42,43,48,43]},
+  'Zagazig':{v:[53,49,52,95,112,46,97,79],c:[46,42,44,45,49,42,52,54]},
+  'Hurghada':{v:[48,44,50,53,60,56,92,93],c:[44,41,45,48,49,51,55,57]},
+  'Port Said':{v:[40,39,40,41,43,42,71,57],c:[39,38,38,41,41,41,42,46]},
+  'Damietta New':{v:[36,32,35,31,31,26,51,47],c:[30,28,30,28,27,23,28,33]},
+  'Al Mahallah Al Kubra':{v:[31,30,30,32,38,60,79,63],c:[29,27,26,27,27,37,38,41]},
+  'Banha':{v:[59,77,20,23,22,17,52,43],c:[14,15,12,15,10,9,18,20]},
+  'Ismailia':{v:[29,26,26,28,36,28,77,63],c:[27,24,23,25,28,25,37,37]},
+  'Minya':{v:[12,11,12,14,16,12,54,40],c:[12,11,12,14,12,12,18,21]},
+  'Beni Suef':{v:[72,10,7,13,15,8,9,6],c:[11,6,6,16,17,8,9,6]},
+  'Shebeen El Koom':{v:[14,13,10,17,16,14,49,35],c:[13,12,8,16,13,13,20,21]},
+  'Damanhour':{v:[18,19,17,21,21,20,57,40],c:[16,17,15,19,16,18,23,23]},
+  'Assiut':{v:[15,15,18,18,20,19,53,46],c:[15,15,17,18,18,19,28,28]},
+  'Kafr El Sheikh':{v:[6,7,8,11,11,11,43,32],c:[6,7,8,11,10,11,15,11]},
+  'Damietta':{v:[12,10,10,11,16,13,41,39],c:[11,9,8,10,10,12,11,18]},
+  'Ras El Bar':{v:[3,4,2,5,7,3,28,27],c:[3,4,2,5,7,3,11,16]},
+  'Suhag':{v:[5,4,3,3,3,0,32,18],c:[5,4,3,3,3,0,9,10]},
+  'North Coast':{v:[3,3,2,2,2,4,22,37],c:[2,3,2,2,2,4,14,24]}
+};
 let activeFilters={cluster:'',owner:''};
 function csvLine(line){
   const f=[];let cur='',inQ=false;
@@ -856,71 +882,95 @@ function buildCityPage(pageId){
   el.innerHTML=html;
 }
 function buildGrowth(){
-  const cities=getFiltered();
-  // Use real Tableau data from growth tracker sheet
   if(GROWTH_TRACKER_DATA===null){
-    document.getElementById('growth-rows').innerHTML='<div style="text-align:center;padding:30px;color:var(--muted)"><em>Loading growth data from Tableau...</em></div>';
+    document.getElementById('growth-rows').innerHTML='<div style="text-align:center;padding:30px;color:var(--muted)"><em>Loading growth data...</em></div>';
     GROWTH_TRACKER_DATA='loading';
     loadGrowthData().then(()=>{if(currentPage==='growth')buildGrowth();});
     return;
   }
   if(GROWTH_TRACKER_DATA==='loading'||Object.keys(GROWTH_TRACKER_DATA).length===0){
-    document.getElementById('growth-rows').innerHTML='<div style="text-align:center;padding:30px;color:var(--muted)"><strong>Growth data unavailable</strong><br><small>The growth tracker sheet is not publicly accessible. <a href="#" onclick="GROWTH_TRACKER_DATA=null;loadGrowthData().then(()=>buildGrowth());return false;" style="color:var(--org)">Retry</a></small></div>';
+    document.getElementById('growth-rows').innerHTML='<div style="text-align:center;padding:30px;color:var(--muted)"><strong>Growth data unavailable</strong><br><small><a href="#" onclick="GROWTH_TRACKER_DATA=null;loadGrowthData().then(()=>buildGrowth());return false;" style="color:var(--org)">Retry</a></small></div>';
     return;
   }
-  function momChip(val){
-    if(!val)return'<span style="color:var(--muted);font-size:9px">&mdash;</span>';
-    const n=parseFloat(val);
-    if(isNaN(n))return'<span class="chip flat" style="font-size:9px">'+val+'</span>';
-    if(n>5)return'<span class="chip up" style="font-size:9px">'+val+'</span>';
-    if(n<-2)return'<span class="chip down" style="font-size:9px">'+val+'</span>';
-    return'<span class="chip flat" style="font-size:9px">'+val+'</span>';
+  if(VENDOR_GROWTH_DATA===null)VENDOR_GROWTH_DATA=STATIC_VENDOR_GROWTH_DATA;
+  const MONTHS=['Dec','Jan','Feb','Mar','Apr','May','Jun','Jul'];
+  const KEYS=['dec25','jan26','feb26','mar26','apr26','may26','jun26','jul26'];
+  function sparkline(vals,col){
+    const max=Math.max(...vals.filter(v=>v>0),1);
+    return vals.map((v,i)=>{
+      const h=Math.max(3,Math.round((v/max)*28));
+      const bg=i===7?col:i===6?col+'bb':col+'55';
+      return'<div style="width:7px;height:'+h+'px;background:'+bg+';border-radius:2px 2px 0 0;align-self:flex-end" title="'+MONTHS[i]+': '+Math.round(v).toLocaleString()+'"></div>';
+    }).join('');
   }
-  const fmtN=v=>v?Math.round(v).toLocaleString():'&mdash;';
   const growEntries=Object.entries(GROWTH_TRACKER_DATA).filter(([city])=>city!=='Cairo').sort(([,a],[,b])=>b.jul26-a.jul26);
-  const positiveJul=growEntries.filter(([,d])=>d.momJul&&parseFloat(d.momJul)>0);
-  const negativeJul=growEntries.filter(([,d])=>d.momJul&&parseFloat(d.momJul)<-2);
+  const positiveJul=growEntries.filter(([,d])=>parseFloat(d.momJul)>0);
+  const negativeJul=growEntries.filter(([,d])=>parseFloat(d.momJul)<-2);
   let html='';
+  // Summary chips
   html+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">';
-  html+='<div style="background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:8px 12px;font-size:11px;flex:1;min-width:200px"><strong style="color:var(--grn)">&#9650; Growing in Jul-26</strong><br><span style="line-height:1.8">';
+  html+='<div style="background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:8px 12px;font-size:11px;flex:1;min-width:180px"><strong style="color:var(--grn)">▲ Growing Jul-26</strong><br>';
   html+=positiveJul.map(([city,d])=>'<span style="margin-right:8px"><b>'+city+'</b> <span style="color:var(--grn)">'+d.momJul+'</span></span>').join('');
-  html+='</span></div>';
+  html+='</div>';
   if(negativeJul.length){
-    html+='<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:8px 12px;font-size:11px;min-width:200px"><strong style="color:var(--red)">&#9660; Declined in Jul-26</strong><br><span style="line-height:1.8">';
+    html+='<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:8px 12px;font-size:11px;min-width:180px"><strong style="color:var(--red)">▼ Declined Jul-26</strong><br>';
     html+=negativeJul.map(([city,d])=>'<span style="margin-right:8px"><b>'+city+'</b> <span style="color:var(--red)">'+d.momJul+'</span></span>').join('');
-    html+='</span></div>';
+    html+='</div>';
   }
   html+='</div>';
-  html+='<div class="section-card" style="overflow-x:auto;margin-bottom:14px">';
-  html+='<h3 style="margin-bottom:4px">&#128200; NFV City Growth — Dec 2025 &rarr; Jul 2026</h3>';
-  html+='<div class="section-sub" style="margin-bottom:12px">Source: Tableau &middot; Avg daily orders per city per month &middot; MoM % vs prior month</div>';
-  html+='<table style="min-width:950px"><thead><tr>';
-  html+='<th style="width:150px">City</th><th>Dec-25</th><th>Jan-26</th><th>Feb-26</th><th>Mar-26</th><th>Apr-26</th><th>May-26</th>';
-  html+='<th style="background:#411517">Jun-26</th><th style="background:#E85000">Jul-26 &#9733;</th><th>MoM Jun</th><th>MoM Jul</th></tr></thead><tbody>';
+  // Legend
+  html+='<div style="display:flex;gap:12px;margin-bottom:10px;font-size:10px;color:var(--muted);align-items:center">';
+  html+='<span><span style="display:inline-block;width:10px;height:10px;background:#FF5900;border-radius:2px;margin-right:4px"></span>Orders/day</span>';
+  html+='<span><span style="display:inline-block;width:10px;height:10px;background:#3b82f6;border-radius:2px;margin-right:4px"></span>Vendors</span>';
+  html+='<span><span style="display:inline-block;width:10px;height:10px;background:#8b5cf6;border-radius:2px;margin-right:4px"></span>Chains</span>';
+  html+='<span style="margin-left:auto">Bars: Dec → Jul-26 (darker = recent)</span>';
+  html+='</div>';
+  // City cards
+  html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:10px">';
   growEntries.forEach(([city,d])=>{
-    const cityObj=CITIES.find(c=>c.city===city||c.city.replace(' Al Kubra','')===city.replace(' Al Kubra',''));
+    const cityObj=CITIES.find(c=>c.city===city);
+    const vd=VENDOR_GROWTH_DATA[city]||null;
     const isPriority=cityObj?.priority;
     const julMom=parseFloat(d.momJul)||0;
-    const julColor=julMom>5?'var(--grn)':julMom<-2?'var(--red)':'var(--bur)';
-    html+='<tr><td style="font-weight:700;white-space:nowrap">'+(isPriority?'&#127919; ':'')+city+'</td>';
-    html+='<td style="color:var(--muted)">'+fmtN(d.dec25)+'</td>';
-    html+='<td>'+fmtN(d.jan26)+'<br>'+momChip(d.momJan)+'</td>';
-    html+='<td>'+fmtN(d.feb26)+'<br>'+momChip(d.momFeb)+'</td>';
-    html+='<td>'+fmtN(d.mar26)+'<br>'+momChip(d.momMar)+'</td>';
-    html+='<td>'+fmtN(d.apr26)+'<br>'+momChip(d.momApr)+'</td>';
-    html+='<td>'+fmtN(d.may26)+'<br>'+momChip(d.momMay)+'</td>';
-    html+='<td style="background:#f5f3ff;font-weight:700">'+fmtN(d.jun26)+'<br>'+momChip(d.momJun)+'</td>';
-    html+='<td style="background:#fff7ed;font-weight:800;color:'+julColor+'">'+fmtN(d.jul26)+'<br>'+momChip(d.momJul)+'</td>';
-    html+='<td>'+momChip(d.momJun)+'</td><td>'+momChip(d.momJul)+'</td></tr>';
+    const momCol=julMom>5?'var(--grn)':julMom<-2?'var(--red)':'var(--muted)';
+    const orders=KEYS.map(k=>d[k]||0);
+    const vendors=vd?vd.v:[0,0,0,0,0,0,0,0];
+    const chains=vd?vd.c:[0,0,0,0,0,0,0,0];
+    const metrics=[
+      {label:'Orders/day',vals:orders,col:'#FF5900'},
+      {label:'Vendors',vals:vendors,col:'#3b82f6'},
+      {label:'Chains',vals:chains,col:'#8b5cf6'}
+    ];
+    html+='<div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px">';
+    html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px">';
+    html+='<div style="display:flex;align-items:center;gap:5px">';
+    html+='<span style="font-weight:800;font-size:13px;color:var(--dk)">'+(isPriority?'🎯 ':'')+city+'</span>';
+    html+='<span style="background:#f1f5f9;color:var(--muted);font-size:9px;padding:2px 5px;border-radius:4px">'+(cityObj?.cluster||'')+'</span>';
+    html+='</div>';
+    html+='<span style="font-size:10px;font-weight:700;color:'+momCol+'">'+( julMom>0?'+':'')+julMom+'% MoM</span>';
+    html+='</div>';
+    metrics.forEach(m=>{
+      const curr=m.vals[7],prev=m.vals[6]||0;
+      const pct=prev>0?Math.round((curr-prev)/prev*100):null;
+      const pctCol=pct>5?'var(--grn)':pct<-2?'var(--red)':'#94a3b8';
+      html+='<div style="display:flex;align-items:flex-end;gap:5px;margin-bottom:4px">';
+      html+='<span style="width:62px;font-size:9px;color:var(--muted);font-weight:600;padding-bottom:2px;flex-shrink:0">'+m.label+'</span>';
+      html+='<span style="font-size:12px;font-weight:800;color:var(--bur);min-width:38px;text-align:right;padding-bottom:2px">'+Math.round(curr).toLocaleString()+'</span>';
+      html+='<div style="flex:1;display:flex;align-items:flex-end;gap:1px;height:30px">'+sparkline(m.vals,m.col)+'</div>';
+      html+=pct!==null?'<span style="font-size:9px;font-weight:700;color:'+pctCol+';padding-bottom:2px;min-width:32px;text-align:right">'+(pct>0?'+':'')+pct+'%</span>':'<span style="width:32px"></span>';
+      html+='</div>';
+    });
+    html+='</div>';
   });
-  html+='</tbody></table></div>';
+  html+='</div>';
   document.getElementById('growth-rows').innerHTML=html;
+  // Chart: top 6 cities orders only
   const chartCities=growEntries.filter(([,d])=>d.dec25||d.jan26).slice(0,6);
   const COLORS=['#FF5900','#3b82f6','#22c55e','#8b5cf6','#f59e0b','#ec4899'];
   mkChart('ch-growth','line',{
     labels:['Dec-25','Jan-26','Feb-26','Mar-26','Apr-26','May-26','Jun-26','Jul-26'],
     datasets:chartCities.map(([city,d],i)=>({
-      label:city,data:[d.dec25||null,d.jan26||null,d.feb26||null,d.mar26||null,d.apr26||null,d.may26||null,d.jun26||null,d.jul26||null],
+      label:city,data:KEYS.map(k=>d[k]||null),
       borderColor:COLORS[i%COLORS.length],backgroundColor:COLORS[i%COLORS.length]+'20',
       tension:.35,pointRadius:4,pointBackgroundColor:COLORS[i%COLORS.length],spanGaps:true
     }))

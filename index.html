@@ -1015,24 +1015,22 @@ function buildVerticals(){
     out+='</tr></tbody></table></div>';
     out+='<div style="font-size:9px;color:var(--muted);margin-top:4px">* Temporary fixed targets for all cities. Supplements counted under Pharmacy. Avg/day = national mature benchmark.</div>';
     out+='</div>';
-    // Detailed table
-    out+='<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Active Vendor Performance by Cuisine</div>';
-    out+='<div style="overflow-x:auto"><table style="font-size:11px"><thead><tr>';
-    out+='<th>Cuisine</th><th style="text-align:right">Active Vendors</th><th style="text-align:right">Curr Avg/Day</th><th style="text-align:right">Mature Avg/Day</th><th style="text-align:right">Total/Day</th><th style="text-align:right">Vendors to Add</th><th style="text-align:right">Expected Uplift</th></tr></thead><tbody>';
-    planRows.forEach(r=>{
-      const icon=CUISINE_ICONS[r.cuisine]||'📦';
-      const perfColor=r.avgPerVendor>=20?'var(--grn)':r.avgPerVendor>=10?'var(--org)':'var(--red)';
-      out+='<tr>';
-      out+='<td style="font-weight:600">'+icon+' '+r.cuisine+'</td>';
-      out+='<td style="text-align:right">'+r.vendors+'</td>';
-      out+='<td style="text-align:right;font-weight:700;color:'+perfColor+'">'+r.avgPerVendor+'</td>';
-      out+='<td style="text-align:right;font-weight:700;color:var(--org)">'+r.matureAvg.toFixed(1)+'</td>';
-      out+='<td style="text-align:right;font-weight:700">'+r.totalDaily+'</td>';
-      out+='<td style="text-align:right;color:var(--org);font-weight:700">'+(r.vendorsToAdd>0?'+'+r.vendorsToAdd:'—')+'</td>';
-      out+='<td style="text-align:right;color:var(--grn);font-weight:700">'+(r.uplift>0?'+'+r.uplift+'/day':'—')+'</td>';
-      out+='</tr>';
-    });
-    out+='</tbody></table></div>';
+    // Detailed cuisine breakdown (raw active data)
+    if(cuisines.length>0){
+      out+='<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;margin-top:10px">Current Active Vendors by Cuisine</div>';
+      out+='<div style="overflow-x:auto"><table style="font-size:11px"><thead><tr>';
+      out+='<th>Cuisine</th><th style="text-align:right">Vendors</th><th style="text-align:right">Avg/Day</th><th style="text-align:right">Total/Day</th></tr></thead><tbody>';
+      cuisines.forEach(([cuis,d])=>{
+        const icon=CUISINE_ICONS[cuis]||'📦';
+        const matureAvg=Math.max(d.avgPerVendor,NATL_AVG[cuis]||15);
+        const perfColor=d.avgPerVendor>=matureAvg*0.7?'var(--grn)':'var(--red)';
+        out+='<tr><td style="font-weight:600">'+icon+' '+cuis+'</td>';
+        out+='<td style="text-align:right">'+d.vendors+'</td>';
+        out+='<td style="text-align:right;font-weight:700;color:'+perfColor+'">'+d.avgPerVendor+'</td>';
+        out+='<td style="text-align:right">'+d.totalDaily+'</td></tr>';
+      });
+      out+='</tbody></table></div>';
+    }
     out+='</div>';
   });
   document.getElementById('vert-container').innerHTML=out||'<div style="text-align:center;padding:30px;color:var(--muted)">No cities with inventory data found.</div>';

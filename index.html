@@ -736,9 +736,14 @@ function buildCityPage(pageId){
 function buildGrowth(){
   const cities=getFiltered();
   // Use real Tableau data from growth tracker sheet
-  if(!GROWTH_TRACKER_DATA||Object.keys(GROWTH_TRACKER_DATA).length===0){
+  if(GROWTH_TRACKER_DATA===null){
     document.getElementById('growth-rows').innerHTML='<div style="text-align:center;padding:30px;color:var(--muted)"><em>Loading growth data from Tableau...</em></div>';
+    GROWTH_TRACKER_DATA='loading';
     loadGrowthData().then(()=>{if(currentPage==='growth')buildGrowth();});
+    return;
+  }
+  if(GROWTH_TRACKER_DATA==='loading'||Object.keys(GROWTH_TRACKER_DATA).length===0){
+    document.getElementById('growth-rows').innerHTML='<div style="text-align:center;padding:30px;color:var(--muted)"><strong>Growth data unavailable</strong><br><small>The growth tracker sheet is not publicly accessible. <a href="#" onclick="GROWTH_TRACKER_DATA=null;loadGrowthData().then(()=>buildGrowth());return false;" style="color:var(--org)">Retry</a></small></div>';
     return;
   }
   function momChip(val){
@@ -812,9 +817,15 @@ function buildAllCities(){
 }
 const CUISINE_ICONS={'grocery':'🛒','supermarket':'🏬','supplements':'💊','specialty_store':'🏪','cosmetics':'💄','fruits':'🍎','bakery & pastry':'🥐','beverages':'🧃','hypermarket':'🏭','pharmacy':'💊','pet shop':'🐾','nuts':'🥜','butchery':'🥩','nuts & dried fruit':'🥜','convenience store':'🏪','dairy':'🥛','Other':'📦'};
 function buildVerticals(){
-  if(!CITY_VERT_DATA||Object.keys(CITY_VERT_DATA).length===0){
+  if(CITY_VERT_DATA===null){
+    // Not yet attempted — load once, no retry loop
     document.getElementById('vert-container').innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)"><em>Loading live inventory data...</em><br><small>Fetching active vendor data from the last 2 months</small></div>';
+    CITY_VERT_DATA='loading';
     loadInventoryData().then(()=>{if(currentPage==='verticals')buildVerticals();});
+    return;
+  }
+  if(CITY_VERT_DATA==='loading'||Object.keys(CITY_VERT_DATA).length===0){
+    document.getElementById('vert-container').innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)"><strong>Inventory data unavailable</strong><br><small style="display:block;margin-top:8px">The inventory sheet requires your DH Google account.<br>Open the <a href="https://docs.google.com/spreadsheets/d/1CoslHVfWl_scxikyDONeWuPgAHOiqrTNAOp5bVpXr10" target="_blank" style="color:var(--org)">EG_LocalShops sheet</a> in a tab while signed in to your talabat account, then click <a href="#" onclick="CITY_VERT_DATA=null;loadInventoryData().then(()=>buildVerticals());return false;" style="color:var(--org)">Retry</a>.</small></div>';
     return;
   }
   const cities=getFiltered();

@@ -957,17 +957,29 @@ function buildGrowth(){
   const positiveJul=growEntries.filter(([,d])=>parseFloat(d.momJul)>0);
   const negativeJul=growEntries.filter(([,d])=>parseFloat(d.momJul)<-2);
   let html='';
-  // Top bar: summary chips + sheet link
-  html+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:stretch;margin-bottom:14px">';
-  html+='<div style="background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:8px 12px;font-size:11px;flex:1;min-width:180px"><strong style="color:var(--grn)">▲ Growing Jul-26</strong><br>';
-  html+=positiveJul.map(([city,d])=>'<span style="margin-right:8px"><b>'+city+'</b> <span style="color:var(--grn)">'+d.momJul+'</span></span>').join('');
-  html+='</div>';
+  // Top bar: MoM summary panels + sheet link
+  html+='<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:start;margin-bottom:14px">';
+
+  // Growing panel
+  html+='<div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:12px 14px">';
+  html+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:10px"><span style="background:#16a34a;color:#fff;border-radius:5px;padding:2px 8px;font-size:10px;font-weight:800;letter-spacing:.04em">▲ GROWING  JUL-26</span></div>';
+  html+='<div style="display:flex;flex-wrap:wrap;gap:6px">';
+  html+=positiveJul.map(([city,d])=>'<div style="display:flex;align-items:center;gap:5px;background:#fff;border:1px solid #bbf7d0;border-radius:6px;padding:4px 9px"><span style="font-size:11px;font-weight:700;color:#111">'+city+'</span><span style="font-size:11px;font-weight:800;color:#16a34a">+'+d.momJul+'</span></div>').join('');
+  html+='</div></div>';
+
+  // Declined panel
+  html+='<div style="background:#fff5f5;border:1.5px solid #fca5a5;border-radius:10px;padding:12px 14px">';
+  html+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:10px"><span style="background:#dc2626;color:#fff;border-radius:5px;padding:2px 8px;font-size:10px;font-weight:800;letter-spacing:.04em">▼ DECLINED  JUL-26</span></div>';
+  html+='<div style="display:flex;flex-wrap:wrap;gap:6px">';
   if(negativeJul.length){
-    html+='<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:8px 12px;font-size:11px;min-width:180px"><strong style="color:var(--red)">▼ Declined Jul-26</strong><br>';
-    html+=negativeJul.map(([city,d])=>'<span style="margin-right:8px"><b>'+city+'</b> <span style="color:var(--red)">'+d.momJul+'</span></span>').join('');
-    html+='</div>';
+    html+=negativeJul.map(([city,d])=>'<div style="display:flex;align-items:center;gap:5px;background:#fff;border:1px solid #fca5a5;border-radius:6px;padding:4px 9px"><span style="font-size:11px;font-weight:700;color:#111">'+city+'</span><span style="font-size:11px;font-weight:800;color:#dc2626">'+d.momJul+'</span></div>').join('');
+  } else {
+    html+='<span style="font-size:11px;color:#aaa">No declines this month</span>';
   }
-  html+='<a href="'+SHEET_URL+'" target="_blank" style="display:flex;align-items:center;gap:6px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:8px 14px;font-size:11px;font-weight:700;color:var(--org);text-decoration:none;white-space:nowrap">📊 Open Sheet</a>';
+  html+='</div></div>';
+
+  // Sheet link
+  html+='<a href="'+SHEET_URL+'" target="_blank" style="display:flex;align-items:center;gap:6px;background:#fff;border:1.5px solid #e5e7eb;border-radius:10px;padding:10px 14px;font-size:11px;font-weight:700;color:var(--org);text-decoration:none;white-space:nowrap;height:fit-content">📊 Open Sheet</a>';
   html+='</div>';
   // Legend
   html+='<div style="display:flex;gap:12px;margin-bottom:10px;font-size:10px;color:var(--muted);align-items:center">';
@@ -1411,7 +1423,21 @@ async function initChurned(){
       </div>`;
     return;
   }
+  const totalEverLost=churnedData.reduce((a,r)=>a+r.everDailyOrders,0);
+  const totalVendors=churnedData.length;
   container.innerHTML=`
+    <div style="background:linear-gradient(135deg,#411517 0%,#6b1f23 100%);border-radius:12px;padding:18px 24px;margin-bottom:16px;display:flex;align-items:center;gap:32px;flex-wrap:wrap">
+      <div>
+        <div style="color:#FFD1B3;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Total Ever Lost — Daily Orders</div>
+        <div style="color:#FF5900;font-size:42px;font-weight:900;line-height:1;letter-spacing:-1px">${totalEverLost.toLocaleString()}</div>
+        <div style="color:#F4EDE3;font-size:11px;margin-top:4px;opacity:.8">orders/day we had before churn — across ${totalVendors} branches</div>
+      </div>
+      <div style="width:1px;height:60px;background:rgba(244,237,227,.2);flex-shrink:0"></div>
+      <div style="color:#F4EDE3;font-size:12px;line-height:1.6;opacity:.85">
+        This is the <strong style="color:#CFFF00">recoverable daily volume</strong> if all churned branches<br>
+        are reactivated — equivalent to <strong style="color:#CFFF00">${Math.round(totalEverLost*30).toLocaleString()} orders/month</strong> at risk
+      </div>
+    </div>
     <div class="kpi-grid" id="ch-kpis" style="margin-bottom:16px"></div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
       <select id="cf-city" onchange="renderChurnedTable(this.value,document.getElementById('cf-am').value)" style="border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:11px;min-width:200px"></select>
